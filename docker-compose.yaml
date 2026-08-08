@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sendry
+      POSTGRES_USER: sendry
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sendry-local-password}
+    volumes:
+      - sendry-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sendry -d sendry"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - sendry-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-sendry}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-sendry-local-minio-secret}
+    volumes:
+      - sendry-minio:/data
+    ports:
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-07-21T05-28-08Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD && mc mb --ignore-existing local/sendry-media"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-sendry}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-sendry-local-minio-secret}
+
+  clamav:
+    image: clamav/clamav-debian:1.5
+    volumes:
+      - sendry-clamav:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    command: ["sh", "-c", "pnpm db:migrate && node dist-server/index.js"]
+    ports:
+      - "4010:4010"
+    environment: &sendry-env
+      APP_URL: ${APP_URL:-http://localhost:4010}
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-before-public-deployment-with-at-least-32-characters}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:-change-this-separate-encryption-key-before-production}
+      DATABASE_URL: postgresql://sendry:${POSTGRES_PASSWORD:-sendry-local-password}@postgres:5432/sendry
+      DATABASE_PATH: /data/sendry-legacy.db
+      ALLOW_LEGACY_SQLITE: "true"
+      REDIS_URL: redis://redis:6379
+      OBJECT_STORAGE_ENDPOINT: http://minio:9000
+      OBJECT_STORAGE_BUCKET: sendry-media
+      OBJECT_STORAGE_REGION: us-east-1
+      OBJECT_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:-sendry}
+      OBJECT_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-sendry-local-minio-secret}
+      OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-stream}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      SEED_DEMO: ${SEED_DEMO:-false}
+    volumes:
+      - sendry-legacy:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4010/api/setup/status').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["node", "dist-server/multichannel-worker.js"]
+    environment: *sendry-env
+    volumes:
+      - sendry-legacy:/data
+    depends_on:
+      app: { condition: service_healthy }
+    restart: unless-stopped
+
+volumes:
+  sendry-postgres:
+  sendry-redis:
+  sendry-minio:
+  sendry-clamav:
+  sendry-legacy:

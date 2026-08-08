@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1786154028025,
+      "tag": "0000_complex_stellaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786154654005,
+      "tag": "0001_marvelous_wither",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786155384161,
+      "tag": "0002_ambiguous_klaw",
+      "breakpoints": true
+    }
+  ]
+}
