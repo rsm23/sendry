@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d111b" />
+    <meta name="description" content="Sendry is a self-hosted platform for campaigns and customer conversations across email, SMS, WhatsApp, push, web chat, and voice." />
+    <meta property="og:title" content="Sendry — Campaigns out. Conversations back." />
+    <meta property="og:description" content="Create, deliver, measure, and answer every customer message from one self-hosted workspace." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://sendry.seifelmoulouk.com/" />
+    <meta property="og:image" content="https://sendry.seifelmoulouk.com/assets/product/overview.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://sendry.seifelmoulouk.com/" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231466ee'/%3E%3Cpath d='M8 10h16v12H8zM9 11l7 6 7-6' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./script.js" defer></script>
+    <title>Sendry — Self-hosted customer messaging</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header" data-header>
+      <a class="brand" href="#top" aria-label="Sendry home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4.5 6.5h15v11h-15zM5 7l7 5.8L19 7" /></svg>
+        </span>
+        <span>Sendry</span>
+      </a>
+      <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-menu-toggle>
+        <span></span><span></span><span></span><span class="sr-only">Toggle navigation</span>
+      </button>
+      <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-nav>
+        <a href="#product">Product</a>
+        <a href="#channels">Channels</a>
+        <a href="#operations">Operations</a>
+        <a href="#architecture">Architecture</a>
+        <a href="https://github.com/rsm23/sendry/tree/main/docs">Docs</a>
+      </nav>
+      <div class="header-actions">
+        <a class="button button-quiet" href="https://github.com/rsm23/sendry" aria-label="View Sendry on GitHub">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.7a9.5 9.5 0 0 0-3 18.5c.5.1.7-.2.7-.5v-1.9c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 0 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .9.1-.7.4-1.1.6-1.4-2.3-.3-4.7-1.1-4.7-5a3.9 3.9 0 0 1 1-2.7 3.6 3.6 0 0 1 .1-2.7s.8-.3 2.8 1a9.6 9.6 0 0 1 5 0c2-1.3 2.8-1 2.8-1 .5 1.3.2 2.3.1 2.7a3.9 3.9 0 0 1 1 2.7c0 3.9-2.4 4.7-4.7 5 .4.3.7 1 .7 1.9v2.9c0 .4.2.6.7.5A9.5 9.5 0 0 0 12 2.7Z" /></svg>
+          GitHub
+        </a>
+        <a class="button button-primary" href="#start">Deploy Sendry</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-copy" data-reveal>
+          <h1>Campaigns out.<br />Conversations back.</h1>
+          <p>One self-hosted workspace to create, deliver, measure, and answer every customer message—across email, SMS, WhatsApp, push, web chat, and voice.</p>
+          <div class="hero-actions">
+            <a class="button button-primary button-large" href="#product">Explore the product</a>
+            <a class="button button-outline button-large" href="https://github.com/rsm23/sendry">View on GitHub</a>
+          </div>
+        </div>
+
+        <div class="hero-product" aria-label="Real Sendry product screenshots" data-reveal>
+          <span class="route-line route-line-one" aria-hidden="true"></span>
+          <span class="route-line route-line-two" aria-hidden="true"></span>
+          <button class="product-shot product-shot-overview" type="button" data-lightbox="./assets/product/overview.jpg" data-caption="Delivery overview — live campaign, audience, allowance, and provider health">
+            <img src="./assets/product/overview.jpg" alt="Sendry delivery overview showing provider health, campaign metrics, recent campaigns, and operational alerts" width="1280" height="720" fetchpriority="high" />
+          </button>
+          <button class="product-shot product-shot-inbox" type="button" data-lightbox="./assets/product/inbox.jpg" data-caption="Unified inbox — conversations, assignment, channel switching, consent, and customer context">
+            <img src="./assets/product/inbox.jpg" alt="Sendry unified inbox showing conversation queues, a web chat, assignment, customer channels, and consent status" width="1280" height="720" />
+          </button>
+        </div>
+      </section>
+
+      <section class="channel-story dark-section" id="channels">
+        <div class="section-number" aria-hidden="true">01</div>
+        <div class="channel-copy" data-reveal>
+          <h2>One customer journey.<br />Every channel.</h2>
+          <p>Plan the message once, then meet customers where the moment belongs.</p>
+          <div class="channel-list" aria-label="Supported channels">
+            <span>Email</span><span>SMS</span><span>WhatsApp</span><span>Push</span><span>Web chat</span><span>Voice</span>
+          </div>
+        </div>
+        <button class="product-shot channel-chooser-shot" type="button" data-lightbox="./assets/product/channel-campaign.jpg" data-caption="Channel-aware campaign creation for email, SMS, WhatsApp, and push" data-reveal>
+          <img src="./assets/product/channel-campaign.jpg" alt="Sendry new campaign screen with email, SMS, WhatsApp, and push channel choices" width="1280" height="720" loading="lazy" />
+        </button>
+      </section>
+
+      <section class="workflow-section" id="product">
+        <header class="section-heading" data-reveal>
+          <div class="section-number section-number-blue" aria-hidden="true">02</div>
+          <div>
+            <h2>From blank page to delivered campaign.</h2>
+            <p>A clear workflow to build, review, schedule, send, pause, and understand every delivery.</p>
+          </div>
+        </header>
+
+        <div class="workflow-track">
+          <article class="workflow-step" data-reveal>
+            <div class="step-copy">
+              <span class="step-index">01</span>
+              <h3>Choose the medium</h3>
+              <p>Email, SMS, WhatsApp, and push each get content and delivery controls designed for the channel.</p>
+              <ul>
+                <li>Draft, scheduled, sending, stopped, sent, and failed states</li>
+                <li>Audience and segment inclusion or exclusion</li>
+                <li>Test delivery, estimates, fees, and local-time scheduling</li>
+              </ul>
+            </div>
+            <button class="product-shot workflow-shot" type="button" data-lightbox="./assets/product/campaigns.jpg" data-caption="Campaign control plane across email, SMS, WhatsApp, and push">
+              <img src="./assets/product/campaigns.jpg" alt="Campaign table with multichannel delivery status and scheduling information" width="1280" height="720" loading="lazy" />
+            </button>
+          </article>
+
+          <article class="workflow-step" data-reveal>
+            <div class="step-copy">
+              <span class="step-index">02</span>
+              <h3>Shape the message</h3>
+              <p>Compose visually, in blocks, or in source. Personalize content, attach files, preview, and run quality checks before sending.</p>
+              <ul>
+                <li>Responsive visual, block, and HTML editing modes</li>
+                <li>AI generation, subject ideas, improvements, and scoring</li>
+                <li>Plain text, tracking modes, link checks, and query parameters</li>
+              </ul>
+            </div>
+            <button class="product-shot workflow-shot" type="button" data-lightbox="./assets/product/composer.jpg" data-caption="Campaign composer with content blocks, AI assistance, tracking, and delivery controls">
+              <img src="./assets/product/composer.jpg" alt="Sendry campaign composer with sender controls, editing canvas, content blocks, tracking, and AI tools" width="1280" height="720" loading="lazy" />
+            </button>
+          </article>
+
+          <article class="workflow-step" data-reveal>
+            <div class="step-copy">
+              <span class="step-index">03</span>
+              <h3>Connect with control</h3>
+              <p>Add providers per brand, test credentials, choose senders, synchronize templates, and roll each channel out behind a feature flag.</p>
+              <ul>
+                <li>SES, SendGrid, Mailjet, Elastic Email, SMTP, and local stream</li>
+                <li>Twilio and Vonage SMS; Meta, Twilio, and Vonage WhatsApp</li>
+                <li>Web Push, FCM, IMAP, Twilio Voice, and delivery webhooks</li>
+              </ul>
+            </div>
+            <button class="product-shot workflow-shot" type="button" data-lightbox="./assets/product/channels.jpg" data-caption="Brand-level channel providers and rollout controls">
+              <img src="./assets/product/channels.jpg" alt="Sendry channels page showing SMS, WhatsApp, push, voice, Twilio, and Vonage configuration" width="1280" height="720" loading="lazy" />
+            </button>
+          </article>
+        </div>
+      </section>
+
+      <section class="audience-section">
+        <div class="section-number" aria-hidden="true">03</div>
+        <div class="audience-copy" data-reveal>
+          <span class="section-label">Audience</span>
+          <h2>Know the person, not just the address.</h2>
+          <p>Profiles, identifiers, consent evidence, custom fields, segments, and subscription state stay together.</p>
+          <dl class="feature-lines">
+            <div><dt>Subscriber lifecycle</dt><dd>Active, unconfirmed, unsubscribed, bounced, complaint</dd></div>
+            <div><dt>Growth tools</dt><dd>CSV import and export, hosted and embedded forms, reCAPTCHA</dd></div>
+            <div><dt>Consent</dt><dd>Single or double opt-in, legal evidence, preference center, scoped unsubscribe</dd></div>
+            <div><dt>Segmentation</dt><dd>Custom fields, all/any condition groups, live counts, inclusion and exclusion</dd></div>
+          </dl>
+        </div>
+        <button class="product-shot audience-shot" type="button" data-lightbox="./assets/product/audience-detail.jpg" data-caption="Subscriber profiles, lifecycle states, filters, imports, exports, forms, segments, and fields" data-reveal>
+          <img src="./assets/product/audience-detail.jpg" alt="Sendry audience detail with subscriber lifecycle states, filters, import, export, segments, fields, and forms" width="1280" height="720" loading="lazy" />
+        </button>
+      </section>
+
+      <section class="automation-section dark-section">
+        <div class="section-number" aria-hidden="true">04</div>
+        <div class="automation-copy" data-reveal>
+          <span class="section-label">Automation</span>
+          <h2>Automate the follow-up.<br />Keep the judgment.</h2>
+          <p>Build drip, annual, and date-based journeys with audience rules, channel-aware steps, and per-step reporting.</p>
+          <div class="automation-details">
+            <span>Before / after offsets</span><span>Segment controls</span><span>Suppression checks</span><span>Per-step reporting</span>
+          </div>
+        </div>
+        <button class="product-shot automation-shot" type="button" data-lightbox="./assets/product/automations.jpg" data-caption="Drip, annual, and one-time date automations with delivery and reporting state" data-reveal>
+          <img src="./assets/product/automations.jpg" alt="Sendry automations overview with annual, drip, and date-based series" width="1280" height="720" loading="lazy" />
+        </button>
+      </section>
+
+      <section class="inbox-section">
+        <header class="section-heading" data-reveal>
+          <div class="section-number section-number-blue" aria-hidden="true">05</div>
+          <div>
+            <span class="section-label">Inbox and voice</span>
+            <h2>Campaign history meets the live conversation.</h2>
+            <p>Every reply arrives with the customer, channel, consent, assignment, and service context your team needs.</p>
+          </div>
+        </header>
+        <div class="inbox-layout">
+          <button class="product-shot inbox-main-shot" type="button" data-lightbox="./assets/product/inbox.jpg" data-caption="Unified inbox for email, SMS, WhatsApp, web chat, and calls" data-reveal>
+            <img src="./assets/product/inbox.jpg" alt="Sendry inbox with queues, conversation, reply composer, customer details, assignment, tags, and channel consent" width="1280" height="720" loading="lazy" />
+          </button>
+          <div class="inbox-capabilities" data-reveal>
+            <div><strong>Queue with intent</strong><span>All, mine, unassigned, unread, waiting, snoozed, and SLA-aware states.</span></div>
+            <div><strong>Answer on the right channel</strong><span>Email, SMS, WhatsApp, and chat replies with internal notes and media.</span></div>
+            <div><strong>Call from context</strong><span>Twilio browser voice, call windows, assignment, answer state, and dispositions.</span></div>
+            <div><strong>Bring chat to your product</strong><span>Sandboxed embeddable widget, public keys, allowed origins, and realtime presence.</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="report-section">
+        <div class="ai-rail" aria-label="AI-assisted workflows" data-reveal>
+          <span class="ai-mark">AI</span><span>Generate</span><span>Suggest</span><span>Improve</span><span>Score</span><span>Analyse</span>
+        </div>
+        <div class="report-grid">
+          <div class="report-copy" data-reveal>
+            <div class="section-number" aria-hidden="true">06</div>
+            <span class="section-label">Reporting</span>
+            <h2>Proof after send.</h2>
+            <p>Delivery, engagement, links, geography, recipient activity, exports, and evidence-based AI analysis in one report.</p>
+            <ul>
+              <li>Identified, anonymous, or disabled tracking</li>
+              <li>Opens, clicks, bounces, complaints, and unsubscribe events</li>
+              <li>Link metrics, activity timeline, geography, and CSV exports</li>
+              <li>Persisted AI score and actionable recommendations</li>
+            </ul>
+          </div>
+          <button class="product-shot report-shot" type="button" data-lightbox="./assets/product/report-detail.jpg" data-caption="Campaign reporting with engagement timeline, links, geography, activity exports, and AI analysis" data-reveal>
+            <img src="./assets/product/report-detail.jpg" alt="Sendry campaign report with activity chart, link performance, AI analysis score, geography, and report actions" width="1280" height="720" loading="lazy" />
+          </button>
+        </div>
+      </section>
+
+      <section class="operations-section" id="operations">
+        <header class="operations-heading" data-reveal>
+          <div class="section-number" aria-hidden="true">07</div>
+          <div>
+            <span class="section-label">Operations</span>
+            <h2>The operational layer is already here.</h2>
+            <p>Templates, files, rules, suppressions, provider health, brand controls, permissions, audit records, and background jobs.</p>
+          </div>
+        </header>
+        <div class="operations-gallery" data-reveal>
+          <button class="product-shot" type="button" data-lightbox="./assets/product/templates.jpg" data-caption="Reusable templates with preview, source editing, URL import, duplication, and AI generation">
+            <img src="./assets/product/templates.jpg" alt="Sendry reusable template library" width="1280" height="720" loading="lazy" />
+            <span>Templates</span>
+          </button>
+          <button class="product-shot" type="button" data-lightbox="./assets/product/files.jpg" data-caption="Brand-scoped file and folder manager with safe upload and cleanup">
+            <img src="./assets/product/files.jpg" alt="Sendry file and folder manager" width="1280" height="720" loading="lazy" />
+            <span>Files</span>
+          </button>
+          <button class="product-shot" type="button" data-lightbox="./assets/product/rules.jpg" data-caption="Event rules, suppressions, blocked domains, webhook attempts, and housekeeping">
+            <img src="./assets/product/rules.jpg" alt="Sendry rules and safety management" width="1280" height="720" loading="lazy" />
+            <span>Rules &amp; safety</span>
+          </button>
+          <button class="product-shot" type="button" data-lightbox="./assets/product/settings.jpg" data-caption="Workspace, brand, delivery, privacy, billing, team, and API settings">
+            <img src="./assets/product/settings.jpg" alt="Sendry workspace and brand settings" width="1280" height="720" loading="lazy" />
+            <span>Settings</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="architecture-section" id="architecture">
+        <header data-reveal>
+          <div class="section-number section-number-blue" aria-hidden="true">08</div>
+          <span class="section-label">Architecture</span>
+          <h2>Your stack. Your data.<br />Your delivery.</h2>
+          <p>Run it on infrastructure you control, use local stream delivery in development, and swap channel providers without rebuilding the product.</p>
+        </header>
+        <div class="architecture-flow" aria-label="Sendry architecture" data-reveal>
+          <div><strong>React</strong><span>Administration UI</span></div><i aria-hidden="true">→</i>
+          <div><strong>Node.js</strong><span>Express API</span></div><i aria-hidden="true">→</i>
+          <div><strong>PostgreSQL</strong><span>Native channel data</span></div><i aria-hidden="true">→</i>
+          <div><strong>Redis</strong><span>BullMQ workers</span></div><i aria-hidden="true">→</i>
+          <div><strong>S3</strong><span>Compatible storage</span></div><i aria-hidden="true">→</i>
+          <div><strong>Providers</strong><span>Every channel</span></div>
+        </div>
+        <div class="architecture-rail" data-reveal>
+          <span>Socket.IO realtime</span><span>ClamAV scanning</span><span>SQLite compatibility bridge</span><span>REST API</span><span>Webhooks</span><span>Docker Compose</span>
+        </div>
+      </section>
+
+      <section class="capabilities-section" id="capabilities">
+        <header data-reveal>
+          <div class="section-number" aria-hidden="true">09</div>
+          <span class="section-label">Complete capability index</span>
+          <h2>Not a demo shell.<br />The whole operating surface.</h2>
+        </header>
+        <div class="capability-index">
+          <article data-reveal>
+            <h3>Workspace &amp; security</h3>
+            <ul>
+              <li>Multi-brand workspaces</li><li>Owner, admin, and client accounts</li><li>Area-level permissions</li><li>Brand duplication and guarded deletion</li><li>Password reset and session security</li><li>TOTP with recovery codes</li><li>WebAuthn passkeys</li><li>Bearer API tokens</li><li>Themes, locale, and time zone</li><li>Audit records</li>
+            </ul>
+          </article>
+          <article data-reveal>
+            <h3>Campaigns &amp; AI</h3>
+            <ul>
+              <li>Email, SMS, WhatsApp, and push</li><li>Visual, block, and source editors</li><li>Templates and duplication</li><li>Attachments and personalization</li><li>Audience and segment targeting</li><li>Tests, estimates, and fee quotes</li><li>Scheduling, stop, and resume</li><li>Open and click tracking modes</li><li>AI generation and subject ideas</li><li>Copy improvement and scoring</li>
+            </ul>
+          </article>
+          <article data-reveal>
+            <h3>Audiences &amp; consent</h3>
+            <ul>
+              <li>Profiles, notes, and custom values</li><li>Email, phone, and WhatsApp identities</li><li>CSV and pasted-address imports</li><li>Custom fields and dynamic segments</li><li>Hosted and embedded forms</li><li>Single and double opt-in</li><li>Consent and preference evidence</li><li>Preference center</li><li>Scoped unsubscribe</li><li>Subscriber data export and deletion</li>
+            </ul>
+          </article>
+          <article data-reveal>
+            <h3>Automation</h3>
+            <ul>
+              <li>Drip series</li><li>Annual date workflows</li><li>One-time date workflows</li><li>Before and after offsets</li><li>Step ordering and enablement</li><li>Mixed-channel steps</li><li>Segment inclusion and exclusion</li><li>Consent and suppression gates</li><li>Per-step engagement reporting</li><li>Automation AI analysis</li>
+            </ul>
+          </article>
+          <article data-reveal>
+            <h3>Inbox &amp; voice</h3>
+            <ul>
+              <li>Email, SMS, WhatsApp, and web chat</li><li>All, mine, and unassigned queues</li><li>Waiting, snoozed, and closed states</li><li>Assignment and SLA controls</li><li>Internal notes and media</li><li>Realtime presence and status</li><li>Customer tags and consent context</li><li>Sandboxed embeddable chat</li><li>Twilio browser voice</li><li>Call records and dispositions</li>
+            </ul>
+          </article>
+          <article data-reveal>
+            <h3>Operations &amp; API</h3>
+            <ul>
+              <li>Templates and file manager</li><li>Rules and webhook attempts</li><li>Suppressions and blocked domains</li><li>Provider feedback events</li><li>Provider and background-job health</li><li>Monthly allowances and fees</li><li>PayPal checkout</li><li>Public JSON API and RSS</li><li>Signed subscriber links</li><li>Exports, retries, and housekeeping</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="start-section dark-section" id="start">
+        <div data-reveal>
+          <div class="section-number" aria-hidden="true">10</div>
+          <h2>Run the whole customer messaging stack.</h2>
+          <p>Clone the repository, start the local infrastructure, migrate, seed, and open a complete demonstration workspace.</p>
+          <div class="start-actions">
+            <a class="button button-white button-large" href="https://github.com/rsm23/sendry/blob/main/docs/LOCAL_DEVELOPMENT.md">Read the docs</a>
+            <a class="button button-dark-outline button-large" href="https://github.com/rsm23/sendry">View source</a>
+          </div>
+        </div>
+        <div class="command-panel" data-reveal>
+          <div class="command-panel-head"><span>Fresh local run</span><button type="button" data-copy-command>Copy</button></div>
+          <pre><code>git clone https://github.com/rsm23/sendry.git
+cd sendry
+corepack enable
+pnpm install
+cp .env.example .env
+pnpm dev:setup
+pnpm dev</code></pre>
+          <p data-copy-status aria-live="polite">Open <strong>http://localhost:5173</strong></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <a class="brand brand-footer" href="#top"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4.5 6.5h15v11h-15zM5 7l7 5.8L19 7" /></svg></span><span>Sendry</span></a>
+      <p>Self-hosted campaigns and customer conversations.</p>
+      <nav aria-label="Footer navigation">
+        <a href="#product">Product</a><a href="#capabilities">Capabilities</a><a href="https://github.com/rsm23/sendry/tree/main/docs">Documentation</a><a href="https://github.com/rsm23/sendry">GitHub</a>
+      </nav>
+    </footer>
+
+    <dialog class="lightbox" data-lightbox-dialog>
+      <button class="lightbox-close" type="button" aria-label="Close screenshot" data-lightbox-close>×</button>
+      <div class="lightbox-stage"><img alt="" data-lightbox-image /></div>
+      <p data-lightbox-caption></p>
+    </dialog>
+  </body>
+</html>

@@ -27,6 +27,8 @@ Sendry is a self-hosted multi-channel marketing and conversations platform. It c
 
 The full product surface is catalogued in [docs/FEATURES.md](docs/FEATURES.md).
 
+The static product showcase lives in [`site/`](site/) and is deployed to GitHub Pages by [`.github/workflows/pages.yml`](.github/workflows/pages.yml). Preview it locally with `python3 -m http.server 4173 --directory site`.
+
 ## Quick start
 
 Requirements for local frontend/API work: Node.js 24+ and pnpm 11+. The complete stack also requires PostgreSQL, Redis, S3-compatible storage, and ClamAV; Docker Compose supplies all four.
