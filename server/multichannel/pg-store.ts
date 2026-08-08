@@ -36,7 +36,7 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
   }
 
   async listContacts(brandId: string, query = '') {
-    const { rows } = await this.pool.query<Record<string, unknown>>(`SELECT c.*,COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'type',i.type,'value',i.value,'normalized_value',i.normalized_value,'is_primary',i.primary)) FILTER (WHERE i.id IS NOT NULL),'[]') identifiers FROM contacts c LEFT JOIN contact_identifiers i ON i.contact_id=c.id WHERE c.brand_id=$1 AND c.deleted_at IS NULL AND ($2='' OR c.display_name ILIKE '%'||$2||'%' OR i.normalized_value ILIKE '%'||$2||'%') GROUP BY c.id ORDER BY c.updated_at DESC LIMIT 250`, [brandId, query])
+    const { rows } = await this.pool.query<Record<string, unknown>>(`SELECT c.*,c.custom_fields attributes,COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'type',i.type,'value',i.value,'normalized_value',i.normalized_value,'is_primary',i."primary")) FILTER (WHERE i.id IS NOT NULL),'[]') identifiers FROM contacts c LEFT JOIN contact_identifiers i ON i.contact_id=c.id WHERE c.brand_id=$1 AND c.deleted_at IS NULL AND ($2='' OR c.display_name ILIKE '%'||$2||'%' OR i.normalized_value ILIKE '%'||$2||'%') GROUP BY c.id ORDER BY c.updated_at DESC LIMIT 250`, [brandId, query])
     return rows
   }
 
@@ -61,7 +61,7 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
       for (const [position, item] of identifiers.entries()) {
         const conflict = item.type === 'email' ? undefined : (await client.query<{ contact_id: string }>('SELECT contact_id FROM contact_identifiers WHERE brand_id=$1 AND type=$2 AND normalized_value=$3', [input.brand_id, item.type, item.normalized])).rows[0]
         if (conflict) await client.query(`INSERT INTO contact_merge_suggestions (id,brand_id,source_contact_id,target_contact_id,reason,status,created_at) VALUES ($1,$2,$3,$4,$5,'pending',now()) ON CONFLICT (source_contact_id,target_contact_id) DO NOTHING`, [id('mrg'), input.brand_id, contactId, conflict.contact_id, `Conflicting ${item.type}: ${item.normalized}`])
-        else await client.query(`INSERT INTO contact_identifiers (id,brand_id,contact_id,type,value,normalized_value,primary,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())`, [id('cid'), input.brand_id, contactId, item.type, item.value, item.normalized, item.primary || position === 0])
+        else await client.query(`INSERT INTO contact_identifiers (id,brand_id,contact_id,type,value,normalized_value,"primary",created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,now())`, [id('cid'), input.brand_id, contactId, item.type, item.value, item.normalized, item.primary || position === 0])
       }
       await client.query('COMMIT')
       return (await this.getContact(input.brand_id, contactId))!
@@ -69,7 +69,7 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
   }
 
   async getContact(brandId: string, contactId: string) {
-    const { rows } = await this.pool.query<Record<string, unknown>>(`SELECT c.*,COALESCE((SELECT jsonb_agg(to_jsonb(i)) FROM contact_identifiers i WHERE i.contact_id=c.id),'[]') identifiers,COALESCE((SELECT jsonb_agg(to_jsonb(e) ORDER BY e.captured_at DESC) FROM consent_events e WHERE e.contact_id=c.id),'[]') consents FROM contacts c WHERE c.brand_id=$1 AND c.id=$2 AND c.deleted_at IS NULL`, [brandId, contactId])
+    const { rows } = await this.pool.query<Record<string, unknown>>(`SELECT c.*,c.custom_fields attributes,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',i.id,'type',i.type,'value',i.value,'normalized_value',i.normalized_value,'is_primary',i."primary")) FROM contact_identifiers i WHERE i.contact_id=c.id),'[]') identifiers,COALESCE((SELECT jsonb_agg(to_jsonb(e) || jsonb_build_object('status',e.action) ORDER BY e.captured_at DESC) FROM consent_events e WHERE e.contact_id=c.id),'[]') consents FROM contacts c WHERE c.brand_id=$1 AND c.id=$2 AND c.deleted_at IS NULL`, [brandId, contactId])
     return rows[0]
   }
 
@@ -153,17 +153,17 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
   }
 
   async listConnections(brandId: string) {
-    return (await this.pool.query<Record<string, unknown>>(`SELECT id,brand_id,provider,channels,label AS name,status,is_default,last_tested_at,created_at,updated_at FROM channel_connections WHERE brand_id=$1 ORDER BY label`, [brandId])).rows
+    return (await this.pool.query<Record<string, unknown>>(`SELECT id,brand_id,provider,channels,channels->>0 AS channel,label AS name,status,is_default,last_tested_at,created_at,updated_at FROM channel_connections WHERE brand_id=$1 ORDER BY label`, [brandId])).rows
   }
 
   async createConnection(input: Parameters<MultiChannelStore['createConnection']>[0]) {
     const connectionId = id('cnn')
-    await this.pool.query(`INSERT INTO channel_connections (id,brand_id,provider,channels,label,encrypted_credentials,status,is_default,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,now(),now())`, [connectionId, input.brand_id, input.provider, [input.channel], input.name, input.encrypted_config, !!input.is_default])
+    await this.pool.query(`INSERT INTO channel_connections (id,brand_id,provider,channels,label,encrypted_credentials,status,is_default,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,now(),now())`, [connectionId, input.brand_id, input.provider, JSON.stringify([input.channel]), input.name, input.encrypted_config, !!input.is_default])
     return (await this.getConnection(connectionId))!
   }
 
   async getConnection(connectionId: string) {
-    return (await this.pool.query<Record<string, unknown>>(`SELECT *,encrypted_credentials AS encrypted_config,label AS name FROM channel_connections WHERE id=$1`, [connectionId])).rows[0]
+    return (await this.pool.query<Record<string, unknown>>(`SELECT *,channels->>0 AS channel,encrypted_credentials AS encrypted_config,label AS name FROM channel_connections WHERE id=$1`, [connectionId])).rows[0]
   }
 
   async updateConnectionTest(connectionId: string, ok: boolean, error?: string) {
@@ -171,7 +171,7 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
   }
 
   async listSenderIdentities(brandId: string, channel?: string) {
-    return (await this.pool.query<Record<string, unknown>>(`SELECT id,brand_id,connection_id,channel,label AS display_name,address,metadata,verified,status,is_default,created_at FROM sender_identities WHERE brand_id=$1 ${channel ? 'AND channel=$2' : ''} ORDER BY channel,label`, channel ? [brandId, channel] : [brandId])).rows
+    return (await this.pool.query<Record<string, unknown>>(`SELECT id,brand_id,connection_id,channel,label AS display_name,address,metadata,verified,CASE WHEN verified THEN 'active' ELSE 'pending' END AS status,is_default,created_at FROM sender_identities WHERE brand_id=$1 ${channel ? 'AND channel=$2' : ''} ORDER BY channel,label`, channel ? [brandId, channel] : [brandId])).rows
   }
 
   async createSenderIdentity(input: Parameters<MultiChannelStore['createSenderIdentity']>[0]) {
@@ -193,18 +193,18 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
     if (filter === 'unread') conditions.push('c.unread_count>0')
     if (filter === 'waiting') conditions.push("c.state='waiting'")
     if (filter === 'snoozed') conditions.push("c.state='snoozed'")
-    return (await this.pool.query<Record<string, unknown>>(`SELECT c.*,c.state status,ct.display_name contact_name,COALESCE((SELECT value FROM contact_identifiers i WHERE i.contact_id=ct.id AND i.primary LIMIT 1),'') contact_address,COALESCE((SELECT body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC LIMIT 1),'') preview FROM conversations c JOIN contacts ct ON ct.id=c.contact_id WHERE ${conditions.join(' AND ')} ORDER BY c.last_message_at DESC LIMIT 250`, values)).rows
+    return (await this.pool.query<Record<string, unknown>>(`SELECT c.*,c.state status,c.channel last_channel,ct.display_name contact_name,COALESCE((SELECT value FROM contact_identifiers i WHERE i.contact_id=ct.id AND i."primary" LIMIT 1),'') contact_address,COALESCE((SELECT body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.created_at DESC LIMIT 1),'') preview FROM conversations c JOIN contacts ct ON ct.id=c.contact_id WHERE ${conditions.join(' AND ')} ORDER BY c.last_message_at DESC LIMIT 250`, values)).rows
   }
 
   async getConversation(brandId: string, conversationId: string) {
-    const result = await this.pool.query<Record<string, unknown>>(`SELECT c.*,c.state status,ct.display_name contact_name,ct.locale contact_locale,ct.timezone contact_timezone FROM conversations c JOIN contacts ct ON ct.id=c.contact_id WHERE c.brand_id=$1 AND c.id=$2`, [brandId, conversationId])
+    const result = await this.pool.query<Record<string, unknown>>(`SELECT c.*,c.state status,c.channel last_channel,ct.display_name contact_name,ct.locale contact_locale,ct.timezone contact_timezone FROM conversations c JOIN contacts ct ON ct.id=c.contact_id WHERE c.brand_id=$1 AND c.id=$2`, [brandId, conversationId])
     if (!result.rows[0]) return undefined
     const [messages, contact] = await Promise.all([this.pool.query<Record<string, unknown>>('SELECT *,type kind,attachments media,created_by_user_id sender_user_id FROM messages WHERE conversation_id=$1 ORDER BY created_at', [conversationId]), this.getContact(brandId, String(result.rows[0].contact_id))])
     return { ...result.rows[0], contact, messages: messages.rows, events: [] }
   }
 
   async updateConversation(input: Parameters<MultiChannelStore['updateConversation']>[0]) {
-    await this.pool.query(`UPDATE conversations SET assigned_user_id=COALESCE($1,assigned_user_id),state=COALESCE($2,state),snoozed_until=$3 WHERE brand_id=$4 AND id=$5`, [input.assigned_user_id ?? null, input.status ?? null, input.snoozed_until ?? null, input.brand_id, input.conversation_id])
+    await this.pool.query(`UPDATE conversations SET assigned_user_id=COALESCE($1,assigned_user_id),state=COALESCE($2::conversation_state,state),snoozed_until=$3 WHERE brand_id=$4 AND id=$5`, [input.assigned_user_id ?? null, input.status ?? null, input.snoozed_until ?? null, input.brand_id, input.conversation_id])
     return this.getConversation(input.brand_id, input.conversation_id)
   }
 
@@ -215,8 +215,8 @@ export class PostgresMultiChannelStore implements MultiChannelStore {
     const client = await this.pool.connect()
     try {
       await client.query('BEGIN')
-      await client.query(`INSERT INTO messages (id,conversation_id,channel,direction,type,sender,body,html,attachments,provider_message_id,message_id_header,in_reply_to,references,status,created_by_user_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [messageId, input.conversation_id, input.channel, input.direction, input.kind ?? 'message', input.sender_user_id ?? input.provider ?? '', input.body, input.html ?? null, input.media ?? [], input.provider_message_id ?? null, typeof metadata.message_id === 'string' ? metadata.message_id : null, typeof metadata.in_reply_to === 'string' ? metadata.in_reply_to : null, references, input.status ?? 'sent', input.sender_user_id ?? null, createdAt])
-      await client.query(`UPDATE conversations SET channel=$1,last_message_at=$2,unread_count=CASE WHEN $3='inbound' THEN unread_count+1 ELSE 0 END,assigned_user_id=CASE WHEN $3='outbound' AND assigned_user_id IS NULL THEN $4 ELSE assigned_user_id END,first_responded_at=CASE WHEN $3='outbound' AND first_responded_at IS NULL THEN $2 ELSE first_responded_at END,state=CASE WHEN $3='outbound' THEN 'waiting' ELSE 'open' END WHERE id=$5`, [input.channel, createdAt, input.direction, input.sender_user_id ?? null, input.conversation_id])
+      await client.query(`INSERT INTO messages (id,conversation_id,channel,direction,type,sender,body,html,attachments,provider_message_id,message_id_header,in_reply_to,"references",status,created_by_user_id,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [messageId, input.conversation_id, input.channel, input.direction, input.kind ?? 'message', input.sender_user_id ?? input.provider ?? '', input.body, input.html ?? null, JSON.stringify(input.media ?? []), input.provider_message_id ?? null, typeof metadata.message_id === 'string' ? metadata.message_id : null, typeof metadata.in_reply_to === 'string' ? metadata.in_reply_to : null, JSON.stringify(references), input.status ?? 'sent', input.sender_user_id ?? null, createdAt])
+      await client.query(`UPDATE conversations SET channel=$1,last_message_at=$2,unread_count=CASE WHEN $3='inbound' THEN unread_count+1 ELSE 0 END,assigned_user_id=CASE WHEN $3='outbound' AND assigned_user_id IS NULL THEN $4 ELSE assigned_user_id END,first_responded_at=CASE WHEN $3='outbound' AND first_responded_at IS NULL THEN $2 ELSE first_responded_at END,state=CASE WHEN $3='outbound' THEN 'waiting'::conversation_state ELSE 'open'::conversation_state END WHERE id=$5`, [input.channel, createdAt, input.direction, input.sender_user_id ?? null, input.conversation_id])
       await client.query('COMMIT')
     } catch (error) { await client.query('ROLLBACK'); throw error } finally { client.release() }
     return { id: messageId, ...input, created_at: createdAt }

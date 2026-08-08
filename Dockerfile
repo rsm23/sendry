@@ -19,7 +19,7 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=build /app/drizzle ./drizzle
 COPY --from=build /app/drizzle.config.ts ./drizzle.config.ts
-COPY --from=build /app/server/multichannel/schema.ts ./server/multichannel/schema.ts
+COPY --from=build /app/server ./server
 RUN mkdir -p /data/uploads
 EXPOSE 4010
 CMD ["node", "dist-server/index.js"]

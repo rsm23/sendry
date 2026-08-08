@@ -49,7 +49,7 @@ async function importContacts(client?: PoolClient) {
   if (!client) return
   for (const contact of contactsByKey.values()) {
     await client.query(`INSERT INTO contacts (id,brand_id,display_name,locale,timezone,tags,custom_fields,created_at,updated_at) VALUES ($1,$2,$3,'en','Europe/Paris','[]','{}',$4,$5) ON CONFLICT (id) DO UPDATE SET display_name=excluded.display_name,updated_at=excluded.updated_at`, [contact.id, contact.brandId, contact.name, contact.createdAt, contact.updatedAt])
-    await client.query(`INSERT INTO contact_identifiers (id,brand_id,contact_id,type,value,normalized_value,primary,created_at) VALUES ($1,$2,$3,'email',$4,$4,true,$5) ON CONFLICT (brand_id,type,normalized_value) DO UPDATE SET contact_id=excluded.contact_id,value=excluded.value`, [deterministic('cid', `${contact.brandId}:${contact.email}`), contact.brandId, contact.id, contact.email, contact.createdAt])
+    await client.query(`INSERT INTO contact_identifiers (id,brand_id,contact_id,type,value,normalized_value,"primary",created_at) VALUES ($1,$2,$3,'email',$4,$4,true,$5) ON CONFLICT (brand_id,type,normalized_value) DO UPDATE SET contact_id=excluded.contact_id,value=excluded.value`, [deterministic('cid', `${contact.brandId}:${contact.email}`), contact.brandId, contact.id, contact.email, contact.createdAt])
   }
   for (const subscriber of subscribers) {
     const list = lists.get(subscriber.list_id); if (!list) continue

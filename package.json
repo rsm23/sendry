@@ -16,9 +16,12 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "preview": "vite preview",
+    "dev:services": "docker compose up -d --wait postgres redis minio clamav && docker compose up --no-deps minio-init",
     "db:seed": "tsx server/scripts/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:setup": "pnpm db:migrate && pnpm db:seed",
+    "dev:setup": "pnpm dev:services && pnpm db:setup",
     "db:import-sqlite": "tsx server/scripts/import-sqlite.ts",
     "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },

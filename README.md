@@ -35,6 +35,7 @@ Requirements for local frontend/API work: Node.js 24+ and pnpm 11+. The complete
 corepack enable
 pnpm install
 cp .env.example .env
+pnpm dev:setup
 pnpm dev
 ```
 
@@ -46,6 +47,8 @@ Password: TestPass123!
 ```
 
 The local stream transport exercises the complete send pipeline without contacting external recipients. Use Channels to add write-only provider credentials and test each connection before enabling a brand feature flag.
+
+For migration, seed, Docker-only, reset, and daily-start commands, see [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md).
 
 ## Verification
 
