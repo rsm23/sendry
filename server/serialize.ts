@@ -1,7 +1,7 @@
 const JSON_KEYS = new Set([
   'provider_config', 'allowed_attachments', 'permissions', 'form_fields', 'custom_values', 'editor_data',
   'attachments', 'segment_include', 'segment_exclude', 'scope', 'action_config', 'payload', 'metadata',
-  'transports', 'scopes',
+  'transports', 'scopes', 'ai_provider_config',
 ])
 
 export function deserializeRow<T extends Record<string, unknown>>(row: T | undefined | null): T | null {

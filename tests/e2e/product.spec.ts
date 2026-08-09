@@ -168,3 +168,32 @@ test("configures every managed delivery provider and verifies local connectivity
   ).toBeVisible();
   await expect(page.getByText("Local stream delivery is ready.")).toBeVisible();
 });
+
+test("configures hosted and local AI providers without returning saved keys", async ({
+  page,
+}) => {
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "AI & privacy" }).click();
+
+  await page.getByLabel("AI provider").click();
+  await page.getByRole("option", { name: "OpenAI", exact: true }).click();
+  await expect(
+    page.getByRole("textbox", { name: "Model", exact: true }),
+  ).toHaveValue("gpt-5-mini");
+  await page.getByLabel("Provider API key").fill("e2e-private-test-key");
+  await page.getByRole("button", { name: "Save AI settings" }).click();
+  await expect(page.getByText("Brand settings saved")).toBeVisible();
+  await expect(page.getByLabel("Provider API key")).toHaveValue("");
+  await expect(
+    page.getByText(/A write-only key is configured for this provider/),
+  ).toBeVisible();
+
+  await page.getByLabel("AI provider").click();
+  await page.getByRole("option", { name: "LM Studio", exact: true }).click();
+  await expect(page.getByLabel("Local server URL")).toHaveValue(
+    "http://127.0.0.1:1234/v1",
+  );
+  await expect(page.getByLabel("Installed model")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Refresh models" })).toBeVisible();
+  await expect(page.getByLabel("Provider API key")).toHaveCount(0);
+});

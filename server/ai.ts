@@ -1,19 +1,15 @@
-import OpenAI from 'openai'
 import type { AppDatabase } from './db'
 import { randomUUID } from 'node:crypto'
 import { nowIso } from './serialize'
+import { completeWithAiProvider, type AiProviderSettings } from './ai-providers'
 
-export type AiContext = {
-  apiKey?: string
+export type AiContext = AiProviderSettings & {
   brandId: string
   db: AppDatabase
 }
 
-async function complete(apiKey: string | undefined, instructions: string, input: string) {
-  if (!apiKey) return null
-  const client = new OpenAI({ apiKey })
-  const response = await client.responses.create({ model: 'gpt-5-mini', instructions, input })
-  return response.output_text.trim()
+async function complete(ctx: AiContext, instructions: string, input: string) {
+  return completeWithAiProvider(ctx, instructions, input)
 }
 
 function generatedEmailPayload(value: string) {
@@ -29,7 +25,7 @@ function generatedEmailPayload(value: string) {
 
 export async function generateSubject(ctx: AiContext, input: { content: string; current?: string; mode?: string }) {
   const mode = input.mode ?? 'concise'
-  const remote = await complete(ctx.apiKey, 'Return exactly one plain-text email subject line with no labels or quotation marks.', `Mode: ${mode}\nCurrent subject: ${input.current ?? ''}\nEmail content:\n${input.content}`)
+  const remote = await complete(ctx, 'Return exactly one plain-text email subject line with no labels or quotation marks.', `Mode: ${mode}\nCurrent subject: ${input.current ?? ''}\nEmail content:\n${input.content}`)
   if (remote) return { subject: remote, source: 'provider' }
   const lead = input.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().split(/[.!?]/)[0] || 'A useful update'
   const subjects: Record<string, string> = {
@@ -43,7 +39,7 @@ export async function generateSubject(ctx: AiContext, input: { content: string; 
 
 export async function generateEmail(ctx: AiContext, input: { task: string; design?: string; requirements?: string }) {
   const prompt = `Task:\n${input.task}\n\nDesign and content:\n${input.design ?? ''}\n\nRequirements:\n${input.requirements ?? ''}`
-  const remote = await complete(ctx.apiKey, 'Create a complete accessible marketing email. Return JSON with title, subject, plainText and html fields.', prompt)
+  const remote = await complete(ctx, 'Create a complete accessible marketing email. Return JSON with title, subject, plainText and html fields.', prompt)
   if (remote) {
     const parsed = generatedEmailPayload(remote)
     if (parsed) return { ...parsed, source: 'provider' }
@@ -57,7 +53,7 @@ export async function generateEmail(ctx: AiContext, input: { task: string; desig
 }
 
 export async function improveContent(ctx: AiContext, input: { content: string; instruction?: string }) {
-  const remote = await complete(ctx.apiKey, 'Improve the supplied email while preserving facts and links. Return only the improved content.', `${input.instruction ?? 'Improve clarity, structure and scannability.'}\n\n${input.content}`)
+  const remote = await complete(ctx, 'Improve the supplied email while preserving facts and links. Return only the improved content.', `${input.instruction ?? 'Improve clarity, structure and scannability.'}\n\n${input.content}`)
   if (remote) return { content: remote, source: 'provider' }
   const content = input.content.trim().replace(/\s{2,}/g, ' ').replace(/\bvery\b/gi, '').replace(/\bjust\b/gi, '')
   return { content, source: 'local', notes: ['Removed filler words', 'Tightened repeated whitespace', 'Preserved links and personalization tags'] }
@@ -68,7 +64,7 @@ export async function analyzeContent(ctx: AiContext, input: { content: string; e
   const hasUnsubscribe = /unsubscribe/i.test(input.content)
   const hasLink = /https?:\/\//i.test(input.content)
   const score = Math.max(35, Math.min(98, 62 + (hasUnsubscribe ? 12 : 0) + (hasLink ? 8 : 0) + (text.length > 180 ? 8 : 0) - (text.length > 1800 ? 10 : 0)))
-  const remote = await complete(ctx.apiKey, 'Analyze this email for clarity, accessibility, deliverability and conversion. Give concise prioritized advice.', input.content)
+  const remote = await complete(ctx, 'Analyze this email for clarity, accessibility, deliverability and conversion. Give concise prioritized advice.', input.content)
   const analysis = remote ?? [
     `Content score: ${score}/100.`,
     hasUnsubscribe ? 'The subscription exit is present.' : 'Add an unsubscribe link before sending.',
@@ -92,7 +88,7 @@ export async function analyzeReport(ctx: AiContext, campaignId: string) {
   const clickRate = ((metrics.click?.unique_count ?? 0) / delivered) * 100
   const score = Math.max(20, Math.min(98, Math.round(72 + openRate / 3 + clickRate - ((metrics.bounce?.unique_count ?? 0) / delivered) * 100 * 4)))
   const localAnalysis = `This campaign scored ${score}/100. Unique opens reached ${openRate.toFixed(1)}% and unique clicks reached ${clickRate.toFixed(1)}%. Preserve the strongest call to action, test one subject variation, and monitor bounce and complaint trends before the next send.`
-  const remote = await complete(ctx.apiKey, 'Analyze campaign performance and return a concise evidence-based assessment with prioritized next actions.', JSON.stringify({ campaign, events }))
+  const remote = await complete(ctx, 'Analyze campaign performance and return a concise evidence-based assessment with prioritized next actions.', JSON.stringify({ campaign, events }))
   const analysis = remote ?? localAnalysis
   const now = nowIso()
   const existing = ctx.db.prepare('SELECT id FROM ai_analyses WHERE brand_id=? AND entity_type=? AND entity_id=?').get(ctx.brandId, 'campaign', campaignId) as { id: string } | undefined
@@ -118,7 +114,7 @@ export async function analyzeAutomationReport(ctx: AiContext, automationId: stri
   const clickRate = clicks / delivered * 100
   const score = Math.max(20, Math.min(98, Math.round(70 + openRate / 3 + clickRate - failed / delivered * 100 * 3)))
   const localAnalysis = `This automation scored ${score}/100 across ${steps.length} email step${steps.length === 1 ? '' : 's'}. Unique opens reached ${openRate.toFixed(1)}% and unique clicks reached ${clickRate.toFixed(1)}%. Review the weakest step, test one subject variation, and keep timing changes isolated so their effect remains measurable.`
-  const remote = await complete(ctx.apiKey, 'Analyze automated email-series performance. Return a concise evidence-based assessment of timing, step-level engagement, click-to-open behavior, risks and prioritized next actions.', JSON.stringify({ automation, steps }))
+  const remote = await complete(ctx, 'Analyze automated email-series performance. Return a concise evidence-based assessment of timing, step-level engagement, click-to-open behavior, risks and prioritized next actions.', JSON.stringify({ automation, steps }))
   const analysis = remote ?? localAnalysis
   const now = nowIso()
   const existing = ctx.db.prepare('SELECT id FROM ai_analyses WHERE brand_id=? AND entity_type=? AND entity_id=?').get(ctx.brandId, 'automation', automationId) as { id: string } | undefined

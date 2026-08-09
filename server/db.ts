@@ -89,6 +89,9 @@ CREATE TABLE IF NOT EXISTS brands (
   recaptcha_site_key TEXT,
   recaptcha_secret_key TEXT,
   openai_api_key TEXT,
+  ai_provider TEXT NOT NULL DEFAULT '',
+  ai_provider_config TEXT NOT NULL DEFAULT '{}',
+  ai_encrypted_api_key TEXT,
   ai_enabled INTEGER NOT NULL DEFAULT 1,
   default_query TEXT NOT NULL DEFAULT '',
   test_prefix TEXT NOT NULL DEFAULT '[Test]',
@@ -875,6 +878,9 @@ export function openDatabase(path = process.env.DATABASE_PATH ?? './data/sendry.
   if (!brandColumns.some((column) => column.name === 'conversation_retention_days')) db.exec('ALTER TABLE brands ADD COLUMN conversation_retention_days INTEGER NOT NULL DEFAULT 730')
   if (!brandColumns.some((column) => column.name === 'provider_payload_retention_days')) db.exec('ALTER TABLE brands ADD COLUMN provider_payload_retention_days INTEGER NOT NULL DEFAULT 30')
   if (!brandColumns.some((column) => column.name === 'allowed_origins')) db.exec("ALTER TABLE brands ADD COLUMN allowed_origins TEXT NOT NULL DEFAULT '[]'")
+  if (!brandColumns.some((column) => column.name === 'ai_provider')) db.exec("ALTER TABLE brands ADD COLUMN ai_provider TEXT NOT NULL DEFAULT ''")
+  if (!brandColumns.some((column) => column.name === 'ai_provider_config')) db.exec("ALTER TABLE brands ADD COLUMN ai_provider_config TEXT NOT NULL DEFAULT '{}'")
+  if (!brandColumns.some((column) => column.name === 'ai_encrypted_api_key')) db.exec('ALTER TABLE brands ADD COLUMN ai_encrypted_api_key TEXT')
   const automationStepColumns = db.prepare('PRAGMA table_info(automation_steps)').all() as Array<{ name: string }>
   if (!automationStepColumns.some((column) => column.name === 'channel')) db.exec("ALTER TABLE automation_steps ADD COLUMN channel TEXT NOT NULL DEFAULT 'email'")
   if (!automationStepColumns.some((column) => column.name === 'sender_identity_id')) db.exec('ALTER TABLE automation_steps ADD COLUMN sender_identity_id TEXT')

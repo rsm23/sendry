@@ -12,8 +12,6 @@ import {
   Cloud,
   Code2,
   Copy,
-  Eye,
-  EyeOff,
   KeyRound,
   Pencil,
   Plus,
@@ -33,6 +31,7 @@ import { useAuth, type Brand } from "@/lib/auth";
 import { number, relative, shortDate } from "@/lib/format";
 import { localeCodes, locales } from "@/i18n/catalog";
 import { PageHeader } from "@/components/page-header";
+import { AiProviderSettings } from "@/components/ai-provider-settings";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -96,6 +95,7 @@ import {
   smtpPresetSettings,
   type SmtpPresetId,
 } from "@/lib/mail-providers";
+import { aiConfigurationReady } from "@/lib/ai-providers";
 
 type Member = {
   id: string;
@@ -183,7 +183,6 @@ export default function SettingsPage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
-  const [revealed, setRevealed] = useState(false);
   const [providerTesting, setProviderTesting] = useState(false);
   const [providerTestResult, setProviderTestResult] =
     useState<ProviderTestResult | null>(null);
@@ -825,8 +824,11 @@ export default function SettingsPage() {
               title="AI assistant"
               description="Generate complete emails, test subject approaches, improve copy, and analyze performance."
               footer={
-                <Button onClick={() => void saveBrand()}>
-                  <Bot />
+                <Button
+                  onClick={() => void saveBrand()}
+                  disabled={!aiConfigurationReady(brandValue)}
+                >
+                  <Bot data-icon="inline-start" />
                   Save AI settings
                 </Button>
               }
@@ -839,52 +841,17 @@ export default function SettingsPage() {
                   setBrandValue({ ...brandValue, ai_enabled })
                 }
               />
-              <div>
-                <Label>Provider API key</Label>
-                <div className="mt-1.5 flex gap-2">
-                  <Input
-                    type={revealed ? "text" : "password"}
-                    value={String(brandValue.openai_api_key ?? "")}
-                    onChange={(event) =>
-                      setBrandValue({
-                        ...brandValue,
-                        openai_api_key: event.target.value,
-                      })
-                    }
-                    placeholder="Uses the server key when empty"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setRevealed((value) => !value)}
-                    aria-label={revealed ? "Hide key" : "Reveal key"}
-                  >
-                    {revealed ? <EyeOff /> : <Eye />}
-                  </Button>
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {brandValue.openai_api_key_configured
-                    ? "A brand-specific key is configured. Enter a new value to replace it."
-                    : "When no key is configured, local deterministic assistance keeps every workflow testable."}
-                </p>
-                {Boolean(brandValue.openai_api_key_configured) && (
-                  <Button
-                    className="mt-2"
-                    size="xs"
-                    variant="ghost"
-                    onClick={async () => {
-                      await patch(`/api/brands/${brandValue.id}`, {
-                        clear_openai_api_key: true,
-                      });
-                      await refresh();
-                      toast.success("Brand AI key removed");
-                    }}
-                  >
-                    <Trash2 />
-                    Remove configured key
-                  </Button>
-                )}
-              </div>
+              <AiProviderSettings
+                value={brandValue}
+                onChange={setBrandValue}
+                onRemoveKey={async () => {
+                  await patch(`/api/brands/${brandValue.id}`, {
+                    clear_ai_api_key: true,
+                  });
+                  await refresh();
+                  toast.success("Brand AI key removed");
+                }}
+              />
             </SettingsCard>
             <SettingsCard
               title="Privacy & consent"

@@ -11,6 +11,7 @@ import {
   scheduleDueWork,
 } from "../server/worker";
 import { signToken } from "../server/tokens";
+import { decryptCredentials } from "../server/multichannel/crypto";
 
 const config = {
   appUrl: "http://localhost:5173",
@@ -46,7 +47,9 @@ describe("Sendry API", () => {
     await agent
       .patch("/api/brands/brd_atlas")
       .send({
-        openai_api_key: "sk-private-test",
+        ai_provider: "openai",
+        ai_provider_config: { model: "gpt-5-mini" },
+        ai_api_key: "sk-private-test",
         provider_config: {
           host: "smtp.example.test",
           password: "smtp-private-test",
@@ -57,8 +60,9 @@ describe("Sendry API", () => {
     expect(bootstrap.body.user.email).toBe("qa@sendry.local");
     expect(bootstrap.body.brands).toHaveLength(1);
     expect(bootstrap.body.brands[0].permissions).toContain("*");
-    expect(bootstrap.body.brands[0].openai_api_key).toBeUndefined();
-    expect(bootstrap.body.brands[0].openai_api_key_configured).toBe(true);
+    expect(bootstrap.body.brands[0].ai_api_key).toBeUndefined();
+    expect(bootstrap.body.brands[0].ai_encrypted_api_key).toBeUndefined();
+    expect(bootstrap.body.brands[0].ai_api_key_configured).toBe(true);
     expect(bootstrap.body.brands[0].provider_config.password).toBe("");
     expect(bootstrap.body.brands[0].provider_config.passwordConfigured).toBe(
       true,
@@ -66,10 +70,53 @@ describe("Sendry API", () => {
     expect(
       (
         db
-          .prepare("SELECT openai_api_key FROM brands WHERE id='brd_atlas'")
-          .get() as { openai_api_key: string }
-      ).openai_api_key,
+          .prepare(
+            "SELECT ai_encrypted_api_key FROM brands WHERE id='brd_atlas'",
+          )
+          .get() as { ai_encrypted_api_key: string }
+      ).ai_encrypted_api_key,
+    ).not.toContain("sk-private-test");
+    const encrypted = (
+      db
+        .prepare(
+          "SELECT ai_encrypted_api_key FROM brands WHERE id='brd_atlas'",
+        )
+        .get() as { ai_encrypted_api_key: string }
+    ).ai_encrypted_api_key;
+    expect(
+      decryptCredentials(encrypted, config.sessionSecret).apiKey,
     ).toBe("sk-private-test");
+  });
+
+  it("does not reuse an AI key when the provider changes", async () => {
+    await agent
+      .patch("/api/brands/brd_atlas")
+      .send({
+        ai_provider: "openai",
+        ai_provider_config: { model: "gpt-5-mini" },
+        ai_api_key: "sk-private-test",
+      })
+      .expect(200);
+    const switched = await agent
+      .patch("/api/brands/brd_atlas")
+      .send({
+        ai_provider: "anthropic",
+        ai_provider_config: { model: "claude-sonnet-4-5" },
+      })
+      .expect(200);
+    expect(switched.body.ai_api_key_configured).toBe(false);
+    expect(
+      (
+        db
+          .prepare(
+            "SELECT ai_encrypted_api_key,openai_api_key FROM brands WHERE id='brd_atlas'",
+          )
+          .get() as {
+          ai_encrypted_api_key: string | null;
+          openai_api_key: string | null;
+        }
+      ).ai_encrypted_api_key,
+    ).toBeNull();
   });
 
   it("preserves masked provider credentials, clears them explicitly, and tests local delivery", async () => {
@@ -175,6 +222,30 @@ describe("Sendry API", () => {
       })
       .expect(409);
     empty.close();
+  });
+
+  it("persists structured email template designs and responsive CSS safely", async () => {
+    const created = await agent
+      .post("/api/brands/brd_atlas/templates")
+      .send({
+        name: "Builder test",
+        subject: "Hello [Name]",
+        plain_text: "Hello [Name]",
+        html_text: '<style>@media(max-width:430px){.column{display:block}}</style><table><tr><td style="color:#1458e6">Hello [Name]</td></tr></table><script>alert(1)</script>',
+        editor_mode: "blocks",
+        editor_data: { version: 1, settings: { width: 640 }, blocks: [{ id: "block_test", type: "text" }] },
+      })
+      .expect(201);
+    expect(created.body.editor_data).toMatchObject({ version: 1, settings: { width: 640 } });
+    expect(created.body.html_text).toContain("@media(max-width:430px)");
+    expect(created.body.html_text).toContain('style="color:#1458e6"');
+    expect(created.body.html_text).not.toContain("<script");
+
+    const updated = await agent
+      .patch(`/api/brands/brd_atlas/templates/${created.body.id}`)
+      .send({ editor_data: { version: 1, settings: { width: 700 }, blocks: [] } })
+      .expect(200);
+    expect(updated.body.editor_data.settings.width).toBe(700);
   });
 
   it("creates, filters, edits, segments, and exports subscribers", async () => {

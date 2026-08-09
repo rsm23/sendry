@@ -39,7 +39,16 @@ import {
   generateEmail,
   generateSubject,
   improveContent,
+  type AiContext,
 } from "./ai";
+import {
+  AI_PROVIDER_IDS,
+  discoverLocalAiModels,
+  isLocalAiProvider,
+  normalizeLocalAiBaseUrl,
+  type AiProviderId,
+} from "./ai-providers";
+import { decryptCredentials, encryptCredentials } from "./multichannel/crypto";
 import { deserializeRow, deserializeRows, nowIso } from "./serialize";
 import { refreshSegmentCount } from "./segments";
 import { sendMessage, verifyMailProvider } from "./mail";
@@ -297,10 +306,21 @@ function updateColumns(
 function withoutBrandSecrets(
   value: Record<string, unknown>,
   settingsAccess = false,
+  deploymentOpenAiKeyConfigured = false,
 ) {
   const row = { ...value };
-  row.openai_api_key_configured = Boolean(row.openai_api_key);
+  const storedAiKeyConfigured = Boolean(
+    row.ai_encrypted_api_key || row.openai_api_key,
+  );
+  row.ai_api_key_configured = storedAiKeyConfigured;
+  row.ai_server_key_configured =
+    !storedAiKeyConfigured &&
+    row.ai_provider === "openai" &&
+    deploymentOpenAiKeyConfigured;
+  row.openai_api_key_configured = storedAiKeyConfigured;
   row.recaptcha_secret_key_configured = Boolean(row.recaptcha_secret_key);
+  delete row.ai_api_key;
+  delete row.ai_encrypted_api_key;
   delete row.openai_api_key;
   delete row.recaptcha_secret_key;
   const provider =
@@ -345,6 +365,70 @@ function mergeProviderConfiguration(
   delete merged.passwordConfigured;
   delete merged.secretAccessKeyConfigured;
   return merged;
+}
+
+function aiEncryptionKey(config: AppConfig) {
+  return (
+    config.credentialEncryptionKey ??
+    (process.env.NODE_ENV === "production" ? "" : config.sessionSecret)
+  );
+}
+
+function resolveAiContext(
+  db: AppDatabase,
+  config: AppConfig,
+  brandId: string,
+): { enabled: boolean; context: AiContext } {
+  const brand = deserializeRow(
+    db
+      .prepare(
+        "SELECT ai_enabled,ai_provider,ai_provider_config,ai_encrypted_api_key,openai_api_key FROM brands WHERE id=?",
+      )
+      .get(brandId) as Record<string, unknown>,
+  ) as Record<string, unknown> | null;
+  if (!brand) throw new Error("Brand not found");
+  const provider = String(
+    brand.ai_provider ||
+      (brand.openai_api_key || config.openaiApiKey ? "openai" : ""),
+  ) as AiProviderId | "";
+  const providerConfig =
+    brand.ai_provider_config && typeof brand.ai_provider_config === "object"
+      ? (brand.ai_provider_config as Record<string, unknown>)
+      : {};
+  let apiKey: string | undefined;
+  if (brand.ai_encrypted_api_key) {
+    apiKey = decryptCredentials(
+      String(brand.ai_encrypted_api_key),
+      aiEncryptionKey(config),
+    ).apiKey;
+  } else if (provider === "openai") {
+    apiKey = String(brand.openai_api_key || config.openaiApiKey || "") || undefined;
+  }
+  return {
+    enabled: Boolean(brand.ai_enabled),
+    context: {
+      provider,
+      model: String(
+        providerConfig.model || (provider === "openai" ? "gpt-5-mini" : ""),
+      ),
+      baseUrl: providerConfig.baseUrl
+        ? String(providerConfig.baseUrl)
+        : undefined,
+      apiKey,
+      brandId,
+      db,
+    },
+  };
+}
+
+function requireEnabledAi(
+  db: AppDatabase,
+  config: AppConfig,
+  brandId: string,
+) {
+  const result = resolveAiContext(db, config, brandId);
+  if (!result.enabled) return null;
+  return result.context;
 }
 
 function providerError(
@@ -1056,7 +1140,11 @@ export function createApp(options: CreateOptions = {}) {
       const settingsAccess =
         request.authKind !== "api" &&
         (permissions.includes("*") || permissions.includes("settings"));
-      return withoutBrandSecrets(brand, settingsAccess);
+      return withoutBrandSecrets(
+        brand,
+        settingsAccess,
+        Boolean(config.openaiApiKey),
+      );
     });
     const visibleWorkspaces =
       request.authKind === "api"
@@ -1240,6 +1328,7 @@ export function createApp(options: CreateOptions = {}) {
               .get(routeParam(request, "brandId")) as Record<string, unknown>,
           ) ?? {},
           true,
+          Boolean(config.openaiApiKey),
         ),
       ),
   );
@@ -1257,7 +1346,72 @@ export function createApp(options: CreateOptions = {}) {
           >,
         ) ?? {};
       const values = { ...request.body };
-      if (!values.openai_api_key) delete values.openai_api_key;
+      const requestedAiProvider =
+        values.ai_provider === undefined
+          ? String(current.ai_provider || "")
+          : String(values.ai_provider || "");
+      const aiSettingsResult = z
+        .object({
+          ai_provider: z.enum(AI_PROVIDER_IDS).or(z.literal("")).optional(),
+          ai_provider_config: z
+            .object({
+              model: z.string().trim().max(200).optional(),
+              baseUrl: z.url().max(500).optional(),
+            })
+            .optional(),
+          ai_api_key: z.string().trim().max(8_192).optional(),
+          openai_api_key: z.string().trim().max(8_192).optional(),
+          clear_ai_api_key: z.boolean().optional(),
+          clear_openai_api_key: z.boolean().optional(),
+        })
+        .safeParse(values);
+      if (!aiSettingsResult.success)
+        return response.status(422).json({
+          error: "Validation failed",
+          details: z.treeifyError(aiSettingsResult.error),
+        });
+      const incomingAiKey = String(
+        values.ai_api_key || values.openai_api_key || "",
+      ).trim();
+      delete values.ai_api_key;
+      delete values.openai_api_key;
+      delete values.ai_encrypted_api_key;
+      const aiProviderChanged =
+        values.ai_provider !== undefined &&
+        requestedAiProvider !== String(current.ai_provider || "");
+      if (
+        request.body.clear_ai_api_key ||
+        request.body.clear_openai_api_key ||
+        aiProviderChanged ||
+        isLocalAiProvider(requestedAiProvider)
+      ) {
+        db.prepare(
+          "UPDATE brands SET ai_encrypted_api_key=NULL,openai_api_key=NULL WHERE id=?",
+        ).run(brandId);
+      }
+      if (incomingAiKey) {
+        values.ai_encrypted_api_key = encryptCredentials(
+          { apiKey: incomingAiKey },
+          aiEncryptionKey(config),
+        );
+        db.prepare("UPDATE brands SET openai_api_key=NULL WHERE id=?").run(
+          brandId,
+        );
+      }
+      if (
+        values.ai_provider_config &&
+        typeof values.ai_provider_config === "object"
+      ) {
+        const aiProviderConfig = {
+          ...(values.ai_provider_config as Record<string, unknown>),
+        };
+        if (isLocalAiProvider(requestedAiProvider))
+          aiProviderConfig.baseUrl = normalizeLocalAiBaseUrl(
+            requestedAiProvider,
+            String(aiProviderConfig.baseUrl || ""),
+          );
+        values.ai_provider_config = aiProviderConfig;
+      }
       if (!values.recaptcha_secret_key) delete values.recaptcha_secret_key;
       if (
         values.provider_config &&
@@ -1268,10 +1422,6 @@ export function createApp(options: CreateOptions = {}) {
           values.provider_config,
         );
       }
-      if (request.body.clear_openai_api_key)
-        db.prepare("UPDATE brands SET openai_api_key=NULL WHERE id=?").run(
-          brandId,
-        );
       if (request.body.clear_recaptcha_secret_key)
         db.prepare(
           "UPDATE brands SET recaptcha_secret_key=NULL WHERE id=?",
@@ -1298,7 +1448,9 @@ export function createApp(options: CreateOptions = {}) {
         "custom_domain_enabled",
         "recaptcha_site_key",
         "recaptcha_secret_key",
-        "openai_api_key",
+        "ai_provider",
+        "ai_provider_config",
+        "ai_encrypted_api_key",
         "ai_enabled",
         "default_query",
         "test_prefix",
@@ -1332,6 +1484,7 @@ export function createApp(options: CreateOptions = {}) {
               .get(brandId) as Record<string, unknown>,
           ) ?? {},
           true,
+          Boolean(config.openaiApiKey),
         ),
       );
     },
@@ -1388,6 +1541,41 @@ export function createApp(options: CreateOptions = {}) {
     },
   );
   app.post(
+    "/api/brands/:brandId/ai/models",
+    requireAuth,
+    requireBrand(db),
+    body(
+      z.object({
+        provider: z.enum(["lmstudio", "ollama"]),
+        baseUrl: z.url().max(500),
+      }),
+    ),
+    async (request, response) => {
+      try {
+        const result = await discoverLocalAiModels(
+          request.body.provider,
+          request.body.baseUrl,
+        );
+        audit(
+          db,
+          "test",
+          "ai_provider",
+          routeParam(request, "brandId"),
+          request.authUser?.id,
+          routeParam(request, "brandId"),
+        );
+        response.json(result);
+      } catch (error) {
+        response.status(422).json({
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unable to discover local AI models",
+        });
+      }
+    },
+  );
+  app.post(
     "/api/brands/:brandId/duplicate",
     requireAuth,
     requireBrand(db),
@@ -1436,6 +1624,7 @@ export function createApp(options: CreateOptions = {}) {
                 .get(copyId) as Record<string, unknown>,
             ) ?? {},
             true,
+            Boolean(config.openaiApiKey),
           ),
         );
     },
@@ -3596,23 +3785,18 @@ export function createApp(options: CreateOptions = {}) {
     requireAuth,
     requireBrand(db),
     async (request, response) => {
-      const brand = db
-        .prepare("SELECT ai_enabled,openai_api_key FROM brands WHERE id=?")
-        .get(routeParam(request, "brandId")) as {
-        ai_enabled: number;
-        openai_api_key?: string;
-      };
-      if (!brand.ai_enabled)
+      const ai = requireEnabledAi(
+        db,
+        config,
+        routeParam(request, "brandId"),
+      );
+      if (!ai)
         return response
           .status(403)
           .json({ error: "AI features are disabled for this brand" });
       response.json(
         await analyzeAutomationReport(
-          {
-            apiKey: brand.openai_api_key || config.openaiApiKey,
-            brandId: routeParam(request, "brandId"),
-            db,
-          },
+          ai,
           routeParam(request, "automationId"),
         ),
       );
@@ -4047,26 +4231,16 @@ export function createApp(options: CreateOptions = {}) {
       }),
     ),
     async (request, response) => {
-      const brand = db
-        .prepare("SELECT ai_enabled,openai_api_key FROM brands WHERE id=?")
-        .get(routeParam(request, "brandId")) as {
-        ai_enabled: number;
-        openai_api_key?: string;
-      };
-      if (!brand.ai_enabled)
+      const ai = requireEnabledAi(
+        db,
+        config,
+        routeParam(request, "brandId"),
+      );
+      if (!ai)
         return response
           .status(403)
           .json({ error: "AI features are disabled for this brand" });
-      response.json(
-        await generateEmail(
-          {
-            apiKey: brand.openai_api_key || config.openaiApiKey,
-            brandId: routeParam(request, "brandId"),
-            db,
-          },
-          request.body,
-        ),
-      );
+      response.json(await generateEmail(ai, request.body));
     },
   );
   app.post(
@@ -4081,26 +4255,16 @@ export function createApp(options: CreateOptions = {}) {
       }),
     ),
     async (request, response) => {
-      const brand = db
-        .prepare("SELECT ai_enabled,openai_api_key FROM brands WHERE id=?")
-        .get(routeParam(request, "brandId")) as {
-        ai_enabled: number;
-        openai_api_key?: string;
-      };
-      if (!brand.ai_enabled)
+      const ai = requireEnabledAi(
+        db,
+        config,
+        routeParam(request, "brandId"),
+      );
+      if (!ai)
         return response
           .status(403)
           .json({ error: "AI features are disabled for this brand" });
-      response.json(
-        await generateSubject(
-          {
-            apiKey: brand.openai_api_key || config.openaiApiKey,
-            brandId: routeParam(request, "brandId"),
-            db,
-          },
-          request.body,
-        ),
-      );
+      response.json(await generateSubject(ai, request.body));
     },
   );
   app.post(
@@ -4114,26 +4278,16 @@ export function createApp(options: CreateOptions = {}) {
       }),
     ),
     async (request, response) => {
-      const brand = db
-        .prepare("SELECT ai_enabled,openai_api_key FROM brands WHERE id=?")
-        .get(routeParam(request, "brandId")) as {
-        ai_enabled: number;
-        openai_api_key?: string;
-      };
-      if (!brand.ai_enabled)
+      const ai = requireEnabledAi(
+        db,
+        config,
+        routeParam(request, "brandId"),
+      );
+      if (!ai)
         return response
           .status(403)
           .json({ error: "AI features are disabled for this brand" });
-      response.json(
-        await improveContent(
-          {
-            apiKey: brand.openai_api_key || config.openaiApiKey,
-            brandId: routeParam(request, "brandId"),
-            db,
-          },
-          request.body,
-        ),
-      );
+      response.json(await improveContent(ai, request.body));
     },
   );
   app.post(
@@ -4149,26 +4303,16 @@ export function createApp(options: CreateOptions = {}) {
       }),
     ),
     async (request, response) => {
-      const brand = db
-        .prepare("SELECT ai_enabled,openai_api_key FROM brands WHERE id=?")
-        .get(routeParam(request, "brandId")) as {
-        ai_enabled: number;
-        openai_api_key?: string;
-      };
-      if (!brand.ai_enabled)
+      const ai = requireEnabledAi(
+        db,
+        config,
+        routeParam(request, "brandId"),
+      );
+      if (!ai)
         return response
           .status(403)
           .json({ error: "AI features are disabled for this brand" });
-      response.json(
-        await analyzeContent(
-          {
-            apiKey: brand.openai_api_key || config.openaiApiKey,
-            brandId: routeParam(request, "brandId"),
-            db,
-          },
-          request.body,
-        ),
-      );
+      response.json(await analyzeContent(ai, request.body));
     },
   );
   app.post(
@@ -4176,23 +4320,18 @@ export function createApp(options: CreateOptions = {}) {
     requireAuth,
     requireBrand(db),
     async (request, response) => {
-      const brand = db
-        .prepare("SELECT ai_enabled,openai_api_key FROM brands WHERE id=?")
-        .get(routeParam(request, "brandId")) as {
-        ai_enabled: number;
-        openai_api_key?: string;
-      };
-      if (!brand.ai_enabled)
+      const ai = requireEnabledAi(
+        db,
+        config,
+        routeParam(request, "brandId"),
+      );
+      if (!ai)
         return response
           .status(403)
           .json({ error: "AI features are disabled for this brand" });
       response.json(
         await analyzeReport(
-          {
-            apiKey: brand.openai_api_key || config.openaiApiKey,
-            brandId: routeParam(request, "brandId"),
-            db,
-          },
+          ai,
           routeParam(request, "campaignId"),
         ),
       );

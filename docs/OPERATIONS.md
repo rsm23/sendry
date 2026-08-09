@@ -16,7 +16,7 @@
 | `OBJECT_STORAGE_*`      | none                    | S3/MinIO endpoint, region, bucket and credentials                  |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | none / `3310`     | Attachment malware scanning service                               |
 | `MAIL_TRANSPORT`        | `stream`                | Force `stream`, or allow each brand to choose `smtp` or `ses`     |
-| `OPENAI_API_KEY`        | empty                   | Server-wide AI provider key; a brand key takes precedence         |
+| `OPENAI_API_KEY`        | empty                   | Optional server-wide OpenAI key; a brand OpenAI key takes precedence |
 | `AWS_REGION`            | `us-east-1`             | Default SES region                                                |
 | `PAYPAL_CLIENT_ID`      | empty                   | PayPal REST client ID                                             |
 | `PAYPAL_CLIENT_SECRET`  | empty                   | PayPal REST client secret                                         |
@@ -82,6 +82,12 @@ Every SMTP connection requires at least TLS 1.2 and has bounded connection, gree
 Amazon SES accepts a region, configuration set, and optional per-brand credentials. When credentials are empty, the AWS SDK uses the deployment's configured identity. To use the Amazon SES SMTP interface instead, select Custom SMTP, enter the regional SES SMTP endpoint, and use region-specific SES SMTP credentials. SES SMTP credentials are different from AWS access keys.
 
 Provider and AI credentials are write-only in the administration interface. Existing secrets are retained when masked fields are saved blank, and each secret has an explicit removal control.
+
+## AI providers
+
+Settings → AI & privacy requires an explicit provider and model before AI can be enabled. Hosted providers are OpenAI, Anthropic, Mistral AI, Z.ai, Moonshot AI, and OpenRouter. Each brand key is encrypted with `CREDENTIAL_ENCRYPTION_KEY`, is never returned by the API, and is cleared when the provider changes so credentials cannot be reused across incompatible services. `OPENAI_API_KEY` remains an optional deployment fallback only when OpenAI is selected.
+
+LM Studio and Ollama run without a hosted-provider key. Sendry discovers installed models server-side from LM Studio's OpenAI-compatible `/v1/models` endpoint or Ollama's `/api/tags` endpoint, then sends completions to `/v1/chat/completions` or `/api/chat`. The configured URL must resolve only to a loopback or private-network address. Defaults are `http://127.0.0.1:1234/v1` for LM Studio and `http://127.0.0.1:11434` for Ollama. When Sendry runs in a container, use a private address or `host.docker.internal` that is reachable from the API container.
 
 ## Worker behavior
 
