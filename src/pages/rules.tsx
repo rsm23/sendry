@@ -35,7 +35,7 @@ export default function RulesPage() {
   const refresh = async () => Promise.all([rules.refetch(), webhooks.refetch(), suppressions.refetch(), domains.refetch()])
 
   return <>
-    <PageHeader eyebrow={brand?.name} title="Rules & safety" description="Automate delivery events, inspect webhook attempts, and control who can receive mail." actions={<Button onClick={() => setRuleOpen(true)}><Plus /> Create rule</Button>} />
+    <PageHeader eyebrow={brand?.name} eyebrowTranslatable={false} title="Rules & safety" description="Automate delivery events, inspect webhook attempts, and control who can receive mail." actions={<Button onClick={() => setRuleOpen(true)}><Plus /> Create rule</Button>} />
     <Tabs defaultValue="rules">
       <TabsList className="mb-5 flex h-auto w-full justify-start overflow-x-auto bg-transparent p-0">
         <TabsTrigger value="rules"><ShieldCheck /> Rules</TabsTrigger><TabsTrigger value="webhooks"><Webhook /> Webhook log</TabsTrigger><TabsTrigger value="suppressions"><MailWarning /> Suppressions</TabsTrigger><TabsTrigger value="domains"><Ban /> Blocked domains</TabsTrigger><TabsTrigger value="housekeeping"><RefreshCw /> Housekeeping</TabsTrigger>

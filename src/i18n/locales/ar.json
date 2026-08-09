@@ -849,5 +849,17 @@
   "Write a message…": "اكتب رسالة…",
   "Write your message…": "اكتب رسالتك...",
   "Your conversation is protected.": "محادثتك محمية.",
-  "Your name": "اسمك"
+  "Your name": "اسمك",
+  "Sendry · Multi-channel operations": "Sendry · عمليات متعددة القنوات",
+  "Self-hosted multi-channel marketing and conversations.": "تسويق ومحادثات متعددة القنوات مستضافة ذاتيًا.",
+  "{brand} workspace": "مساحة عمل {brand}",
+  "delivery transport": "وسيلة التسليم",
+  "No sends": "لا توجد عمليات إرسال",
+  "{count} paused automation": "{count} عملية أتمتة متوقفة مؤقتًا",
+  "{count} paused automations": "{count} عمليات أتمتة متوقفة مؤقتًا",
+  "Open Automations to review or resume delivery.": "افتح الأتمتة لمراجعة التسليم أو استئنافه.",
+  "Bounce rate needs attention": "معدل الارتداد يحتاج إلى انتباه",
+  "{percent}% of recent delivery events were bounces.": "كانت نسبة {percent}% من أحداث التسليم الأخيرة مرتدة.",
+  "Monthly allowance is nearly used": "أوشك الحد الشهري على النفاد",
+  "{percent}% of the configured allowance has been used.": "تم استخدام {percent}% من الحد المهيأ."
 }

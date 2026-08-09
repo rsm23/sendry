@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, get, post } from '@/lib/api'
 import { resolveLocale } from '@/i18n/catalog'
-import { useI18n, type ThemePreference } from '@/i18n/i18n'
+import { useI18n, type ThemePreference } from '@/i18n/context'
 
 export type User = { id: string; name: string; email: string; language: string; timezone: string; theme: string }
 export type Brand = { id: string; workspace_id: string; name: string; from_name: string; from_email: string; reply_to: string; provider: string; [key: string]: unknown }

@@ -9,6 +9,12 @@ const propertyNames = new Set(['actionLabel', 'description', 'detail', 'label', 
 const ignoredAncestors = new Set(['className', 'href', 'id', 'src', 'to', 'value'])
 const messages = new Set([
   'System', 'Light', 'Dark', 'English', 'French', 'Spanish', 'Arabic',
+  'Sendry · Multi-channel operations', 'Self-hosted multi-channel marketing and conversations.',
+  '{brand} workspace', 'delivery transport', 'No sends',
+  '{count} paused automation', '{count} paused automations',
+  'Open Automations to review or resume delivery.', 'Bounce rate needs attention',
+  '{percent}% of recent delivery events were bounces.', 'Monthly allowance is nearly used',
+  '{percent}% of the configured allowance has been used.',
   'success', 'failed', 'sent', 'active', 'sending', 'queued', 'scheduled', 'unconfirmed', 'draft',
   'stopped', 'unsubscribed', 'bounced', 'complaint', 'open', 'waiting', 'snoozed', 'closed',
 ])

@@ -74,7 +74,7 @@ Rules for every new feature:
 2. Run `node scripts/i18n/extract.mjs`, then translate every new key in `fr.json`, `es.json`, and `ar.json`. Never translate keys; translate values only.
 3. Use `const { t } = useI18n()` for dynamic copy and interpolation: `t('{count} recipients', { count })`. Static JSX is extracted, but explicit `t()` is preferred for reusable logic and tests.
 4. Format numbers, percentages, dates, times, currencies, and relative times through locale-aware helpers. Do not pass a hard-coded `'en'` locale to `Intl`.
-5. Do not translate customer-authored content, brand names, addresses, URLs, provider identifiers, API enum values, or delivered message/email HTML. Mark intentionally verbatim DOM subtrees with `data-i18n-ignore`.
+5. Do not translate customer-authored content, brand/user/audience/campaign/file names, addresses, URLs, provider identifiers, API enum values, or delivered message/email HTML. Put the standard `translate="no"` attribute on dynamic customer/data subtrees. Reserve `data-i18n-ignore` for application-owned technical previews that must stay verbatim.
 6. New locale support requires one catalog, registry metadata/direction, API validation, parity tests, and rendered LTR/RTL QA. See `docs/LOCALIZATION.md`.
 
 Source content language (`web_language`, provider template language, marketplace/provider text) is domain data and remains distinct from the administrator interface locale.

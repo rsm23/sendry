@@ -7,7 +7,8 @@ import { Toaster } from 'sonner'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from '@/lib/auth'
-import { I18nProvider, useI18n } from '@/i18n/i18n'
+import { I18nProvider } from '@/i18n/i18n'
+import { useI18n } from '@/i18n/context'
 
 function LocalizedToaster() {
   const { direction } = useI18n()

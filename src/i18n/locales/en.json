@@ -849,5 +849,17 @@
   "Write a message…": "Write a message…",
   "Write your message…": "Write your message…",
   "Your conversation is protected.": "Your conversation is protected.",
-  "Your name": "Your name"
+  "Your name": "Your name",
+  "Sendry · Multi-channel operations": "Sendry · Multi-channel operations",
+  "Self-hosted multi-channel marketing and conversations.": "Self-hosted multi-channel marketing and conversations.",
+  "{brand} workspace": "{brand} workspace",
+  "delivery transport": "delivery transport",
+  "No sends": "No sends",
+  "{count} paused automation": "{count} paused automation",
+  "{count} paused automations": "{count} paused automations",
+  "Open Automations to review or resume delivery.": "Open Automations to review or resume delivery.",
+  "Bounce rate needs attention": "Bounce rate needs attention",
+  "{percent}% of recent delivery events were bounces.": "{percent}% of recent delivery events were bounces.",
+  "Monthly allowance is nearly used": "Monthly allowance is nearly used",
+  "{percent}% of the configured allowance has been used.": "{percent}% of the configured allowance has been used."
 }

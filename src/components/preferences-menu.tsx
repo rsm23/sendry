@@ -5,7 +5,7 @@ import {
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { localeCodes, locales, type Locale } from '@/i18n/catalog'
-import { useI18n, type ThemePreference } from '@/i18n/i18n'
+import { useI18n, type ThemePreference } from '@/i18n/context'
 import { cn } from '@/lib/utils'
 
 const themeOptions: Array<{ value: ThemePreference; label: string; icon: typeof Sun }> = [
@@ -40,12 +40,14 @@ export function PreferencesMenu({
       <Languages />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-56">
-      <DropdownMenuLabel>Language</DropdownMenuLabel>
-      <DropdownMenuRadioGroup value={locale} onValueChange={changeLocale}>
-        {localeCodes.map((code) => <DropdownMenuRadioItem key={code} value={code}>
-          <span lang={code} dir={locales[code].direction}>{locales[code].nativeName}</span>
-        </DropdownMenuRadioItem>)}
-      </DropdownMenuRadioGroup>
+      <DropdownMenuGroup>
+        <DropdownMenuLabel>Language</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={locale} onValueChange={changeLocale}>
+          {localeCodes.map((code) => <DropdownMenuRadioItem key={code} value={code}>
+            <span lang={code} dir={locales[code].direction} data-i18n-ignore>{locales[code].nativeName}</span>
+          </DropdownMenuRadioItem>)}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuGroup>
       <DropdownMenuSeparator />
       <DropdownMenuGroup>
         <DropdownMenuLabel>Theme</DropdownMenuLabel>

@@ -274,7 +274,7 @@ export default function AutomationsPage() {
   return (
     <>
       <PageHeader
-        eyebrow={brand?.name}
+        eyebrow={brand?.name} eyebrowTranslatable={false}
         title="Automations"
         description="Drip sequences, annual messages, and one-time date workflows with segment targeting and per-step reporting."
         actions={

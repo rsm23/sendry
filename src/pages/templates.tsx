@@ -205,7 +205,7 @@ export default function TemplatesPage() {
   return (
     <>
       <PageHeader
-        eyebrow={brand?.name}
+        eyebrow={brand?.name} eyebrowTranslatable={false}
         title="Templates"
         description="Reusable email structures for campaigns and automated series."
         actions={

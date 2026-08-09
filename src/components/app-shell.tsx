@@ -18,7 +18,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { get } from '@/lib/api'
 import { patch } from '@/lib/api'
 import { PreferencesMenu } from '@/components/preferences-menu'
-import { useI18n } from '@/i18n/i18n'
+import { useI18n } from '@/i18n/context'
+import { localizeAlert } from '@/lib/alerts'
 
 type NotificationOverview = { alerts: Array<{ id: string; severity: string; title: string; detail: string }>; campaigns: Array<{ id: string; subject: string; status: string; scheduled_at?: string }> }
 
@@ -37,7 +38,7 @@ const navigation = [
 
 export function AppShell() {
   const { brand, brands, user, selectBrand, logout } = useAuth()
-  const { direction } = useI18n()
+  const { direction, t } = useI18n()
   const location = useLocation()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -71,13 +72,13 @@ export function AppShell() {
           <DropdownMenu>
             <DropdownMenuTrigger render={<button className="flex h-10 w-full items-center gap-2 rounded-md border border-sidebar-border bg-white/4 px-2 text-sm outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring"/>}>
               <span className="grid size-6 shrink-0 place-items-center rounded border border-sidebar-border"><Activity className="size-3.5"/></span>
-              <span className="min-w-0 flex-1 truncate text-start font-medium group-data-[collapsible=icon]:hidden">{brand?.name ?? 'Select brand'}</span>
+              <span className="min-w-0 flex-1 truncate text-start font-medium group-data-[collapsible=icon]:hidden" translate={brand ? 'no' : undefined}>{brand?.name ?? 'Select brand'}</span>
               <ChevronDown className="size-4 group-data-[collapsible=icon]:hidden"/>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Brands</DropdownMenuLabel>
-                {brands.map((item) => <DropdownMenuItem key={item.id} onClick={() => selectBrand(item.id)}>{item.name}</DropdownMenuItem>)}
+                {brands.map((item) => <DropdownMenuItem key={item.id} onClick={() => selectBrand(item.id)}><span translate="no">{item.name}</span></DropdownMenuItem>)}
               </DropdownMenuGroup>
               {can('settings') && <><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/settings')}><Plus/> Add or manage brands</DropdownMenuItem></>}
             </DropdownMenuContent>
@@ -102,7 +103,7 @@ export function AppShell() {
               <DropdownMenu>
                 <DropdownMenuTrigger render={<SidebarMenuButton size="lg" className="h-12"/>}>
                   <Avatar className="size-7 rounded-md"><AvatarFallback className="rounded-md bg-sidebar-accent text-xs">{user?.name.split(' ').map((part) => part[0]).join('').slice(0,2)}</AvatarFallback></Avatar>
-                  <span className="min-w-0 flex-1 text-start group-data-[collapsible=icon]:hidden"><span className="block truncate text-sm font-medium">{user?.name}</span><span className="block truncate text-xs text-sidebar-foreground/60">{user?.email}</span></span>
+                  <span className="min-w-0 flex-1 text-start group-data-[collapsible=icon]:hidden" translate="no"><span className="block truncate text-sm font-medium">{user?.name}</span><span className="block truncate text-xs text-sidebar-foreground/60">{user?.email}</span></span>
                   <ChevronDown className="size-4 group-data-[collapsible=icon]:hidden"/>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="right" align="end" className="w-56">
@@ -122,10 +123,10 @@ export function AppShell() {
       <SidebarInset className="min-w-0 bg-background">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
           <SidebarTrigger/>
-          <div className="hidden items-center gap-2 text-sm sm:flex"><span className="text-muted-foreground">{brand?.name}</span><span className="text-muted-foreground/40">/</span><span className="font-medium">{active?.label ?? 'Workspace'}</span></div>
+          <div className="hidden items-center gap-2 text-sm sm:flex"><span className="text-muted-foreground" translate="no">{brand?.name}</span><span className="text-muted-foreground/40">/</span><span className="font-medium">{active?.label ?? 'Workspace'}</span></div>
           <button onClick={() => setSearchOpen(true)} className="mx-auto flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 rounded-lg border bg-card px-3 text-start text-sm text-muted-foreground shadow-none outline-none hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring"><Search className="size-4 shrink-0"/><span className="truncate">Search conversations, contacts, campaigns…</span><kbd className="ms-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[0.65rem] sm:inline">{searchShortcut}</kbd></button>
           <PreferencesMenu onLocaleChange={(language) => patch('/api/settings/profile', { language })} onThemeChange={(theme) => patch('/api/settings/profile', { theme })} />
-          <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ms-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{alert.title}</strong><span className="block text-xs text-muted-foreground">{alert.detail}</span></span></DropdownMenuItem>)}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ms-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => { const copy = localizeAlert(alert, t); return <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{copy.title}</strong><span className="block text-xs text-muted-foreground">{copy.detail}</span></span></DropdownMenuItem> })}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           {can('campaigns') && <Button size="sm" onClick={() => navigate('/campaigns/new')} className="hidden sm:inline-flex"><Plus/> Create campaign</Button>}
         </header>
         <main className="page-gutter min-w-0"><Outlet/></main>

@@ -34,3 +34,7 @@ export function translateMessage(locale: Locale, message: string): string {
   const key = message.trim()
   return key ? `${leading}${locales[locale].messages[key] ?? key}${trailing}` : message
 }
+
+export function isCatalogMessage(message: string) {
+  return Object.prototype.hasOwnProperty.call(locales.en.messages, message.trim())
+}

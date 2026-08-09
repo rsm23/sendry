@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/i18n/context";
+import { localizeAlert } from "@/lib/alerts";
 import {
   Table,
   TableBody,
@@ -66,6 +68,7 @@ type Overview = {
 
 export default function OverviewPage() {
   const { brand } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const query = useQuery({
     queryKey: ["overview", brand?.id],
@@ -96,7 +99,7 @@ export default function OverviewPage() {
   return (
     <>
       <PageHeader
-        eyebrow={`${brand.name} workspace`}
+        eyebrow={t("{brand} workspace", { brand: brand.name })}
         title="Delivery overview"
         description="Live campaign, audience, and provider health at a glance."
         actions={
@@ -118,7 +121,7 @@ export default function OverviewPage() {
           <div>
             <p className="text-sm font-medium">Provider configured</p>
             <p className="text-xs text-muted-foreground">
-              {data.provider.provider} delivery transport
+              {data.provider.provider} {t("delivery transport")}
             </p>
           </div>
         </div>
@@ -146,7 +149,7 @@ export default function OverviewPage() {
                     (campaign) => campaign.status === "scheduled",
                   )?.scheduled_at,
                 )
-              : "No sends"}
+              : t("No sends")}
           </p>
           <p className="text-xs text-muted-foreground">next scheduled</p>
         </div>
@@ -219,9 +222,9 @@ export default function OverviewPage() {
                     }
                   >
                     <TableCell>
-                      <p className="font-medium">{campaign.subject}</p>
+                      <p className="font-medium" translate="no">{campaign.subject}</p>
                       <p className="max-w-xs truncate text-xs text-muted-foreground">
-                        {campaign.label || "No campaign label"}
+                        {campaign.label ? <span translate="no">{campaign.label}</span> : t("No campaign label")}
                       </p>
                     </TableCell>
                     <TableCell className="hidden tabular-nums sm:table-cell">
@@ -282,7 +285,9 @@ export default function OverviewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {data.alerts.map((alert) => (
+              {data.alerts.map((alert) => {
+                const copy = localizeAlert(alert, t);
+                return (
                 <button
                   key={alert.id}
                   onClick={() =>
@@ -300,13 +305,14 @@ export default function OverviewPage() {
                     <AlertTriangle className="size-4" />
                   </span>
                   <span>
-                    <strong className="block text-sm">{alert.title}</strong>
+                    <strong className="block text-sm">{copy.title}</strong>
                     <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                      {alert.detail}
+                      {copy.detail}
                     </span>
                   </span>
                 </button>
-              ))}
+                );
+              })}
               {!data.alerts.length && (
                 <p className="p-5 text-sm text-muted-foreground">
                   No active delivery alerts.
@@ -323,7 +329,8 @@ export default function OverviewPage() {
                 <ActivityItem
                   key={campaign.id}
                   icon={campaign.status === "sent" ? MailCheck : Clock3}
-                  text={`${campaign.subject} · ${campaign.status}`}
+                  subject={campaign.subject}
+                  status={t(campaign.status)}
                   time={relative(
                     campaign.sent_at ??
                       campaign.scheduled_at ??
@@ -370,11 +377,13 @@ function Metric({
 }
 function ActivityItem({
   icon: Icon,
-  text,
+  subject,
+  status,
   time,
 }: {
   icon: typeof Clock3;
-  text: string;
+  subject: string;
+  status: string;
   time: string;
 }) {
   return (
@@ -383,7 +392,7 @@ function ActivityItem({
         <Icon className="size-3.5" />
       </span>
       <div>
-        <p className="text-sm leading-snug">{text}</p>
+        <p className="text-sm leading-snug"><span translate="no">{subject}</span> · {status}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{time}</p>
       </div>
     </div>

@@ -12,7 +12,7 @@ Sendry ships in English (`en`), French (`fr`), Spanish (`es`), and Arabic (`ar`)
 
 Catalogs deliberately use the English source phrase as the key. Existing screens are localized at the application boundary for complete retrofit coverage. New reusable or dynamic copy should use `const { t } = useI18n()` and `t('Message')`; interpolation uses braces, for example `t('{count} recipients', { count })`. Static JSX text is still extracted, but explicit `t()` calls make dynamic behavior testable and easier to review.
 
-Do not translate customer content, brand names, email addresses, URLs, provider identifiers, API payload values, or HTML email previews. Use `data-i18n-ignore` on a subtree that must remain verbatim.
+Do not translate customer content, brand names, email addresses, URLs, provider identifiers, API payload values, or HTML email previews. Put `translate="no"` on dynamic customer/data subtrees; use `data-i18n-ignore` only for application-owned technical previews that must remain verbatim.
 
 ## Theme rules
 

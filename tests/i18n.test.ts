@@ -24,9 +24,9 @@ describe('localization contract', () => {
   it('formats numbers with the active locale', () => {
     setFormatLocale('en')
     const english = number.format(1234567)
-    setFormatLocale('ar')
-    const arabic = number.format(1234567)
-    expect(arabic).not.toBe(english)
+    setFormatLocale('fr')
+    const french = number.format(1234567)
+    expect(french).not.toBe(english)
     setFormatLocale('en')
   })
 

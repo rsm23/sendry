@@ -849,5 +849,17 @@
   "Write a message…": "Écrivez un message…",
   "Write your message…": "Écrivez votre message…",
   "Your conversation is protected.": "Votre conversation est protégée.",
-  "Your name": "Votre nom"
+  "Your name": "Votre nom",
+  "Sendry · Multi-channel operations": "Sendry · Opérations multicanales",
+  "Self-hosted multi-channel marketing and conversations.": "Marketing et conversations multicanales auto-hébergés.",
+  "{brand} workspace": "Espace de travail {brand}",
+  "delivery transport": "transport de livraison",
+  "No sends": "Aucun envoi",
+  "{count} paused automation": "{count} automatisation en pause",
+  "{count} paused automations": "{count} automatisations en pause",
+  "Open Automations to review or resume delivery.": "Ouvrez Automatisations pour vérifier ou reprendre la livraison.",
+  "Bounce rate needs attention": "Le taux de rebond nécessite votre attention",
+  "{percent}% of recent delivery events were bounces.": "{percent} % des événements de livraison récents étaient des rebonds.",
+  "Monthly allowance is nearly used": "Le quota mensuel est presque épuisé",
+  "{percent}% of the configured allowance has been used.": "{percent} % du quota configuré a été utilisé."
 }

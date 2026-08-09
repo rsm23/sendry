@@ -1,21 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { localeCodes, locales, resolveLocale, translateMessage, type Direction, type Locale } from '@/i18n/catalog'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { isCatalogMessage, localeCodes, locales, resolveLocale, translateMessage, type Locale } from '@/i18n/catalog'
 import { setFormatLocale } from '@/lib/format'
-
-export type ThemePreference = 'system' | 'light' | 'dark'
-export type ResolvedTheme = 'light' | 'dark'
-
-type I18nContextValue = {
-  locale: Locale
-  direction: Direction
-  theme: ThemePreference
-  resolvedTheme: ResolvedTheme
-  setLocale: (locale: Locale) => void
-  setTheme: (theme: ThemePreference) => void
-  t: (message: string, values?: Record<string, string | number>) => string
-}
-
-const I18nContext = createContext<I18nContextValue | null>(null)
+import { I18nContext, type I18nContextValue, type ResolvedTheme, type ThemePreference } from '@/i18n/context'
 const textSources = new WeakMap<Text, string>()
 const attributeSources = new WeakMap<Element, Map<string, string>>()
 const translatedAttributes = ['aria-label', 'alt', 'placeholder', 'title'] as const
@@ -31,20 +17,21 @@ function storedTheme(): ThemePreference {
 
 function shouldIgnore(node: Node) {
   const element = node instanceof Element ? node : node.parentElement
-  return Boolean(element?.closest('script, style, code, pre, [data-i18n-ignore]'))
+  return Boolean(element?.closest('script, style, code, pre, [data-i18n-ignore], [translate="no"]'))
 }
 
-function localizeText(node: Text, locale: Locale) {
+function localizeText(node: Text, locale: Locale, keepKnownSource = false) {
   if (shouldIgnore(node)) return
   const knownSource = textSources.get(node)
   const expected = knownSource === undefined ? undefined : translateMessage(locale, knownSource)
-  const source = knownSource === undefined || (node.data !== expected && node.data !== knownSource) ? node.data : knownSource
+  const preserveSource = keepKnownSource && knownSource !== undefined && isCatalogMessage(knownSource)
+  const source = knownSource === undefined || (!preserveSource && node.data !== expected && node.data !== knownSource) ? node.data : knownSource
   textSources.set(node, source)
   const translated = translateMessage(locale, source)
   if (node.data !== translated) node.data = translated
 }
 
-function localizeAttributes(element: Element, locale: Locale) {
+function localizeAttributes(element: Element, locale: Locale, keepKnownSource = false) {
   if (shouldIgnore(element)) return
   const sources = attributeSources.get(element) ?? new Map<string, string>()
   for (const attribute of translatedAttributes) {
@@ -52,7 +39,8 @@ function localizeAttributes(element: Element, locale: Locale) {
     if (current === null) continue
     const knownSource = sources.get(attribute)
     const expected = knownSource === undefined ? undefined : translateMessage(locale, knownSource)
-    const source = knownSource === undefined || (current !== expected && current !== knownSource) ? current : knownSource
+    const preserveSource = keepKnownSource && knownSource !== undefined && isCatalogMessage(knownSource)
+    const source = knownSource === undefined || (!preserveSource && current !== expected && current !== knownSource) ? current : knownSource
     sources.set(attribute, source)
     const translated = translateMessage(locale, source)
     if (current !== translated) element.setAttribute(attribute, translated)
@@ -60,14 +48,14 @@ function localizeAttributes(element: Element, locale: Locale) {
   attributeSources.set(element, sources)
 }
 
-function localizeTree(root: Node, locale: Locale) {
-  if (root instanceof Text) localizeText(root, locale)
-  if (root instanceof Element) localizeAttributes(root, locale)
+function localizeTree(root: Node, locale: Locale, keepKnownSource = false) {
+  if (root instanceof Text) localizeText(root, locale, keepKnownSource)
+  if (root instanceof Element) localizeAttributes(root, locale, keepKnownSource)
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT)
   let node = walker.nextNode()
   while (node) {
-    if (node instanceof Text) localizeText(node, locale)
-    else if (node instanceof Element) localizeAttributes(node, locale)
+    if (node instanceof Text) localizeText(node, locale, keepKnownSource)
+    else if (node instanceof Element) localizeAttributes(node, locale, keepKnownSource)
     node = walker.nextNode()
   }
 }
@@ -83,6 +71,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [systemDark, setSystemDark] = useState(() => matchMedia('(prefers-color-scheme: dark)').matches)
   const localeRef = useRef(locale)
   localeRef.current = locale
+  setFormatLocale(locale)
   const resolvedTheme: ResolvedTheme = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme
 
   const setLocale = useCallback((next: Locale) => {
@@ -111,14 +100,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     root.dataset.theme = theme
     root.classList.toggle('dark', resolvedTheme === 'dark')
     root.style.colorScheme = resolvedTheme
-    setFormatLocale(locale)
+    document.title = translateMessage(locale, 'Sendry · Multi-channel operations')
+    document.querySelector('meta[name="description"]')?.setAttribute('content', translateMessage(locale, 'Self-hosted multi-channel marketing and conversations.'))
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', resolvedTheme === 'dark' ? '#17191f' : '#f9f8f4')
   }, [locale, resolvedTheme, theme])
 
   useLayoutEffect(() => {
-    const root = document.getElementById('root')
+    const root = document.body
     if (!root) return
-    localizeTree(root, locale)
+    localizeTree(root, locale, true)
     const observer = new MutationObserver((records) => {
       for (const record of records) {
         if (record.type === 'characterData') localizeText(record.target as Text, localeRef.current)
@@ -133,10 +123,4 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback((message: string, values?: Record<string, string | number>) => interpolate(translateMessage(locale, message), values), [locale])
   const value = useMemo<I18nContextValue>(() => ({ locale, direction: locales[locale].direction, theme, resolvedTheme, setLocale, setTheme, t }), [locale, resolvedTheme, setLocale, setTheme, t, theme])
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
-}
-
-export function useI18n() {
-  const context = useContext(I18nContext)
-  if (!context) throw new Error('useI18n must be used inside I18nProvider')
-  return context
 }
