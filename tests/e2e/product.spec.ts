@@ -98,6 +98,40 @@ test("searches settings and workspace records from the command palette", async (
   await expect(page).toHaveURL(/\/templates\/tpl_weekly\/builder$/);
 });
 
+test("keeps the three most recent distinct searches", async ({ page }) => {
+  const searchButton = page.getByRole("button", { name: "Search anything in Sendry" });
+  const searchInput = page.getByPlaceholder("Search anything in Sendry…");
+
+  for (const query of ["SMTP host", "QA Admin", "Fresh picks", "Monthly allowance"]) {
+    await searchButton.click();
+    await searchInput.fill(query);
+    await page.keyboard.press("Escape");
+  }
+
+  await searchButton.click();
+  const recentGroup = page.locator('[data-slot="command-group"]').filter({
+    has: page.getByText("Recent searches", { exact: true }),
+  });
+  const recentItems = recentGroup.locator('[data-slot="command-item"]');
+  await expect(recentItems).toHaveCount(3);
+  await expect(recentItems.nth(0)).toContainText("Monthly allowance");
+  await expect(recentItems.nth(1)).toContainText("Fresh picks");
+  await expect(recentItems.nth(2)).toContainText("QA Admin");
+  await expect(recentGroup.getByText("SMTP host", { exact: true })).toHaveCount(0);
+
+  await recentGroup.getByText("QA Admin", { exact: true }).click();
+  await expect(searchInput).toHaveValue("QA Admin");
+  await expect(page.getByText("qa@sendry.local · owner", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await searchButton.click();
+  const reorderedItems = page.locator('[data-slot="command-group"]').filter({
+    has: page.getByText("Recent searches", { exact: true }),
+  }).locator('[data-slot="command-item"]');
+  await expect(reorderedItems).toHaveCount(3);
+  await expect(reorderedItems.nth(0)).toContainText("QA Admin");
+});
+
 test("keeps global search usable in every locale and dark mode", async ({ page }) => {
   await page.evaluate(async () => {
     const response = await fetch("/api/settings/profile", {

@@ -1,10 +1,11 @@
-import { useDeferredValue, useMemo, useState, type ComponentType } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   Bot,
   FileStack,
   Files,
+  History,
   Inbox,
   ListFilter,
   LoaderCircle,
@@ -108,6 +109,23 @@ const kindMetadata: Record<GlobalSearchResult["kind"], { label: string; icon: Se
 };
 
 const kindOrder = Object.keys(kindMetadata) as GlobalSearchResult["kind"][];
+const recentSearchLimit = 3;
+
+function readRecentSearches(storageKey: string | null) {
+  if (!storageKey) return [];
+
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.length >= 2)
+      .slice(0, recentSearchLimit);
+  } catch {
+    return [];
+  }
+}
 
 function includesSearch(value: string, query: string) {
   const candidate = value.toLocaleLowerCase();
@@ -129,10 +147,14 @@ export function GlobalSearch({
   navigation: SearchNavigationItem[];
   settingsEnabled: boolean;
 }) {
-  const { brand } = useAuth();
+  const { brand, user } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
   const [value, setValue] = useState("");
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const historyStorageKey = user && brand
+    ? `sendry_search_history_v1:${user.id}:${brand.id}`
+    : null;
   const deferredValue = useDeferredValue(value.trim());
   const permissions = (brand?.permissions as string[] | undefined) ?? [];
   const can = (permission: string) =>
@@ -147,6 +169,10 @@ export function GlobalSearch({
     enabled: open && !!brand && searching,
     staleTime: 30_000,
   });
+
+  useEffect(() => {
+    setRecentSearches(readRecentSearches(historyStorageKey));
+  }, [historyStorageKey]);
 
   const staticMatches = !value.trim()
     ? []
@@ -175,7 +201,28 @@ export function GlobalSearch({
     return groups;
   }, [search.data?.results]);
 
+  const rememberSearch = (query: string) => {
+    const normalizedQuery = query.trim();
+    if (!historyStorageKey || normalizedQuery.length < 2) return;
+
+    setRecentSearches((current) => {
+      const next = [
+        normalizedQuery,
+        ...current.filter(
+          (item) => item.toLocaleLowerCase() !== normalizedQuery.toLocaleLowerCase(),
+        ),
+      ].slice(0, recentSearchLimit);
+      try {
+        localStorage.setItem(historyStorageKey, JSON.stringify(next));
+      } catch {
+        // Search remains usable when browser storage is unavailable.
+      }
+      return next;
+    });
+  };
+
   const choose = (path: string) => {
+    rememberSearch(value);
     navigate(path);
     setValue("");
     onOpenChange(false);
@@ -186,7 +233,10 @@ export function GlobalSearch({
     <CommandDialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) setValue("");
+        if (!nextOpen) {
+          rememberSearch(value);
+          setValue("");
+        }
         onOpenChange(nextOpen);
       }}
       title={t("Search Sendry")}
@@ -204,6 +254,24 @@ export function GlobalSearch({
         <CommandList className="max-h-[min(62vh,30rem)]">
           {!value.trim() ? (
             <>
+              {recentSearches.length ? (
+                <>
+                  <CommandGroup heading={t("Recent searches")}>
+                    {recentSearches.map((query) => (
+                      <CommandItem
+                        key={query.toLocaleLowerCase()}
+                        value={`recent-search-${query}`}
+                        onSelect={() => setValue(query)}
+                      >
+                        <History />
+                        <span className="min-w-0 flex-1 truncate" translate="no">{query}</span>
+                        <CommandShortcut>↵</CommandShortcut>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                  <CommandSeparator />
+                </>
+              ) : null}
               <CommandGroup heading={t("Jump to")}>
                 {navigation.map((item) => (
                   <CommandItem
