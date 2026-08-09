@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { ArrowLeft, AtSign, CheckCheck, ChevronDown, Clock3, Filter, Headphones, Mail, MessageCircle, Mic, MoreVertical, Paperclip, Pause, Phone, PhoneOff, Search, Send, Smile, Smartphone, StickyNote, Volume2, X } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { get, patch, post } from '@/lib/api'
@@ -113,9 +114,15 @@ function ContactPanel({ conversation }: { conversation?: Conversation }) {
 }
 
 export default function InboxPage() {
-  const { brand } = useAuth(), [queue, setQueue] = useState('all'), [selected, setSelected] = useState<string>()
+  const { brand } = useAuth(), [searchParams] = useSearchParams(), [queue, setQueue] = useState('all'), [selected, setSelected] = useState<string>()
   const conversations = useQuery({ queryKey: ['conversations', brand?.id, queue], queryFn: () => get<{ data: Conversation[] }>(`/api/v2/brands/${brand?.id}/conversations?queue=${queue}`).then((item) => item.data), enabled: !!brand, refetchInterval: 15_000 })
-  useEffect(() => { if (!selected && conversations.data?.[0]) setSelected(conversations.data[0].id) }, [conversations.data, selected])
+  useEffect(() => {
+    if (selected || !conversations.data?.length) return
+    const conversationId = searchParams.get('conversation')
+    const contactId = searchParams.get('contact')
+    const requested = conversations.data.find((item) => item.id === conversationId || item.contact_id === contactId)
+    setSelected(requested?.id ?? conversations.data[0].id)
+  }, [conversations.data, searchParams, selected])
   const chosen = useMemo(() => conversations.data?.find((item) => item.id === selected), [conversations.data, selected])
   const details = useQuery({ queryKey: ['conversation-contact', brand?.id, selected], queryFn: () => get<{ data: Conversation }>(`/api/v2/brands/${brand?.id}/conversations/${selected}`).then((item) => item.data), enabled: !!brand && !!selected })
   return <div className="-m-4 h-[calc(100dvh-3.5rem)] min-h-0 sm:-mx-6 sm:-mb-6 sm:-mt-5 lg:-mx-8 lg:-mb-7 lg:-mt-7">

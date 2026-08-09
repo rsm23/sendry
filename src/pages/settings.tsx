@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation, useSearchParams } from "react-router-dom";
 import {
   startRegistration,
   type PublicKeyCredentialCreationOptionsJSON,
@@ -189,6 +190,12 @@ export default function SettingsPage() {
   const [newToken, setNewToken] = useState("");
   const [totpSetup, setTotpSetup] = useState<TotpSetup | null>(null);
   const [totpCode, setTotpCode] = useState("");
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSection = searchParams.get("section") ?? "brand";
+  const activeSection = ["brand", "sending", "ai", "limits", "team", "account", "api"].includes(requestedSection)
+    ? requestedSection
+    : "brand";
   const [profile, setProfile] = useState({
     name: user?.name ?? "",
     email: user?.email ?? "",
@@ -215,6 +222,16 @@ export default function SettingsPage() {
         theme: user.theme,
       });
   }, [user]);
+  useEffect(() => {
+    if (!location.hash) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(location.hash.slice(1))?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeSection, location.hash]);
   const members = useQuery({
     queryKey: ["members", brand?.id],
     queryFn: () => get<Member[]>(`/api/brands/${brand?.id}/members`),
@@ -364,7 +381,13 @@ export default function SettingsPage() {
         }
       />
       <Tabs
-        defaultValue="brand"
+        value={activeSection}
+        onValueChange={(section) => {
+          const next = new URLSearchParams(searchParams);
+          next.set("section", String(section));
+          next.delete("member");
+          setSearchParams(next, { replace: true });
+        }}
         orientation="vertical"
         className="grid items-start gap-6 lg:grid-cols-[12rem_minmax(0,1fr)]"
       >
@@ -394,6 +417,7 @@ export default function SettingsPage() {
         <div className="min-w-0">
           <TabsContent value="brand" className="mt-0 space-y-5">
             <SettingsCard
+              id="brand-identity"
               title="Brand identity"
               description="Defaults used for new messages and hosted pages."
               footer={
@@ -469,6 +493,7 @@ export default function SettingsPage() {
               </div>
             </SettingsCard>
             <SettingsCard
+              id="custom-domain"
               title="Custom domain"
               description="Use your own HTTPS hostname for forms, web versions, and tracking."
               footer={
@@ -517,6 +542,7 @@ export default function SettingsPage() {
               />
             </SettingsCard>
             <SettingsCard
+              id="brand-defaults"
               title="Brand defaults"
               description="Sorting, composition, and reporting preferences for this brand."
             >
@@ -575,6 +601,7 @@ export default function SettingsPage() {
             </SettingsCard>
             {workspaceValue && (
               <SettingsCard
+                id="workspace-defaults"
                 title="Workspace defaults"
                 description="Shared display, language, deletion, and API behavior."
                 footer={
@@ -677,6 +704,7 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="sending" className="mt-0 space-y-5">
             <SettingsCard
+              id="delivery-provider"
               title="Delivery provider"
               description="Choose the transport used by campaigns, tests, confirmations, and automations."
               footer={
@@ -761,6 +789,7 @@ export default function SettingsPage() {
               )}
             </SettingsCard>
             <SettingsCard
+              id="tracking-defaults"
               title="Tracking defaults"
               description="Tracking can be identified, anonymous, or fully disabled."
             >
@@ -800,6 +829,7 @@ export default function SettingsPage() {
               />
             </SettingsCard>
             <SettingsCard
+              id="attachments"
               title="Attachments"
               description="Comma-separated extensions accepted by campaigns and the file manager."
             >
@@ -821,6 +851,7 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="ai" className="mt-0 space-y-5">
             <SettingsCard
+              id="ai-assistant"
               title="AI assistant"
               description="Generate complete emails, test subject approaches, improve copy, and analyze performance."
               footer={
@@ -854,6 +885,7 @@ export default function SettingsPage() {
               />
             </SettingsCard>
             <SettingsCard
+              id="privacy-consent"
               title="Privacy & consent"
               description="Choose how subscriber identity and consent constraints affect delivery."
             >
@@ -891,6 +923,7 @@ export default function SettingsPage() {
               />
             </SettingsCard>
             <SettingsCard
+              id="bot-protection"
               title="Bot protection"
               description="Optional reCAPTCHA credentials for public subscription forms."
             >
@@ -935,7 +968,7 @@ export default function SettingsPage() {
             </SettingsCard>
           </TabsContent>
           <TabsContent value="limits" className="mt-0 space-y-5">
-            <Card>
+            <Card id="monthly-allowance" className="scroll-mt-20">
               <CardHeader>
                 <CardTitle>Monthly allowance</CardTitle>
                 <CardDescription>
@@ -992,6 +1025,7 @@ export default function SettingsPage() {
               </CardFooter>
             </Card>
             <SettingsCard
+              id="campaign-fees"
               title="Campaign fees"
               description="Optional account billing based on a fixed delivery fee and recipient volume."
             >
@@ -1038,7 +1072,7 @@ export default function SettingsPage() {
             </SettingsCard>
           </TabsContent>
           <TabsContent value="team" className="mt-0">
-            <Card>
+            <Card id="team" className="scroll-mt-20">
               <CardHeader className="flex-row items-start justify-between">
                 <div>
                   <CardTitle>Client accounts & permissions</CardTitle>
@@ -1064,7 +1098,7 @@ export default function SettingsPage() {
                   </TableHeader>
                   <TableBody>
                     {members.data?.map((member) => (
-                      <TableRow key={member.id}>
+                      <TableRow key={member.id} className={searchParams.get("member") === member.id ? "bg-muted" : undefined}>
                         <TableCell>
                           <p className="font-medium">{member.name}</p>
                           <p className="text-xs text-muted-foreground">
@@ -1127,6 +1161,7 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="account" className="mt-0 space-y-5">
             <SettingsCard
+              id="profile"
               title="Profile"
               description="Language, time zone, and appearance for your administrator account."
               footer={
@@ -1178,6 +1213,7 @@ export default function SettingsPage() {
               </div>
             </SettingsCard>
             <SettingsCard
+              id="password-security"
               title="Password & two-factor authentication"
               description="Use a long password and time-based one-time codes."
             >
@@ -1209,6 +1245,7 @@ export default function SettingsPage() {
               </div>
             </SettingsCard>
             <SettingsCard
+              id="passkeys"
               title="Passkeys"
               description="Use device biometrics or a security key for phishing-resistant sign-in."
             >
@@ -1252,7 +1289,7 @@ export default function SettingsPage() {
             </SettingsCard>
           </TabsContent>
           <TabsContent value="api" className="mt-0 space-y-5">
-            <Card>
+            <Card id="api-tokens" className="scroll-mt-20">
               <CardHeader className="flex-row items-start justify-between">
                 <div>
                   <CardTitle>API tokens</CardTitle>
@@ -1316,7 +1353,7 @@ export default function SettingsPage() {
                 <code>{`curl -H "Authorization: Bearer $TOKEN" \\\n  ${window.location.origin}/api/v1/brands`}</code>
               </pre>
             </SettingsCard>
-            <Card>
+            <Card id="background-jobs" className="scroll-mt-20">
               <CardHeader>
                 <CardTitle>Background jobs</CardTitle>
                 <CardDescription>
@@ -1525,18 +1562,20 @@ export default function SettingsPage() {
 }
 
 function SettingsCard({
+  id,
   title,
   description,
   children,
   footer,
 }: {
+  id?: string;
   title: string;
   description: string;
   children: ReactNode;
   footer?: ReactNode;
 }) {
   return (
-    <Card>
+    <Card id={id} className="scroll-mt-20">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>

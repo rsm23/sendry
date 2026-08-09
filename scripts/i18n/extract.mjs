@@ -80,6 +80,10 @@ for (const file of sourceRoots.flatMap((directory) => sourceFiles(path.join(root
       const first = node.arguments[0]
       if (first && ts.isStringLiteralLike(first)) add(first.text)
     }
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 't') {
+      const first = node.arguments[0]
+      if (first && ts.isStringLiteralLike(first)) add(first.text)
+    }
     if (ts.isStringLiteralLike(node) && ts.isJsxExpression(node.parent)) add(node.text)
     ts.forEachChild(node, visit)
   }

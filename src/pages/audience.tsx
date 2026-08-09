@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Check, ChevronRight, Clipboard, Download, ExternalLink, FileUp, Filter, Plus, Search, Settings2, SlidersHorizontal, Trash2, Upload, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/lib/auth'
@@ -33,11 +33,12 @@ type Segment={id:string;name:string;match_mode:'all'|'any';last_count:number;las
 
 export default function AudiencePage(){
   const { direction } = useI18n()
-  const {listId}=useParams();const {brand}=useAuth();const client=useQueryClient();const [tab,setTab]=useState('subscribers');const [status,setStatus]=useState('all');const [search,setSearch]=useState('');const [country,setCountry]=useState('');const [source,setSource]=useState('');const [filtersOpen,setFiltersOpen]=useState(false);const [page,setPage]=useState(1);const [selected,setSelected]=useState<Subscriber|null>(null);const [editOpen,setEditOpen]=useState(false);const [addOpen,setAddOpen]=useState(false);const [importOpen,setImportOpen]=useState(false);const [fieldOpen,setFieldOpen]=useState(false);const [segmentOpen,setSegmentOpen]=useState(false);const [editingSegment,setEditingSegment]=useState<Segment|null>(null)
+  const {listId}=useParams();const [searchParams]=useSearchParams();const {brand}=useAuth();const client=useQueryClient();const [tab,setTab]=useState('subscribers');const [status,setStatus]=useState('all');const [search,setSearch]=useState('');const [country,setCountry]=useState('');const [source,setSource]=useState('');const [filtersOpen,setFiltersOpen]=useState(false);const [page,setPage]=useState(1);const [selected,setSelected]=useState<Subscriber|null>(null);const [editOpen,setEditOpen]=useState(false);const [addOpen,setAddOpen]=useState(false);const [importOpen,setImportOpen]=useState(false);const [fieldOpen,setFieldOpen]=useState(false);const [segmentOpen,setSegmentOpen]=useState(false);const [editingSegment,setEditingSegment]=useState<Segment|null>(null)
   const listQuery=useQuery({queryKey:['list',brand?.id,listId],queryFn:()=>get<Audience>(`/api/brands/${brand?.id}/lists/${listId}`),enabled:!!brand&&!!listId})
   const subscriberQuery=useQuery({queryKey:['subscribers',brand?.id,listId,status,search,country,source,page],queryFn:()=>get<SubscriberResult>(`/api/brands/${brand?.id}/lists/${listId}/subscribers?status=${status}&q=${encodeURIComponent(search)}&country=${encodeURIComponent(country)}&source=${encodeURIComponent(source)}&page=${page}`),enabled:!!brand&&!!listId})
   const segmentQuery=useQuery({queryKey:['segments',brand?.id,listId],queryFn:()=>get<Segment[]>(`/api/brands/${brand?.id}/lists/${listId}/segments`),enabled:!!brand&&!!listId})
   const detailQuery=useQuery({queryKey:['subscriber',brand?.id,listId,selected?.id],queryFn:()=>get<Subscriber&{activity:Array<{id:string;type:string;subject:string;occurred_at:string;link_url?:string}>;preferences:Array<{id:string;action:string;occurred_at:string}>}>(`/api/brands/${brand?.id}/lists/${listId}/subscribers/${selected?.id}`),enabled:!!selected})
+  useEffect(()=>{const subscriberId=searchParams.get('subscriber');if(subscriberId&&!selected)setSelected({id:subscriberId} as Subscriber)},[searchParams,selected])
   const list=listQuery.data;const subscribers=subscriberQuery.data
   async function refresh(){await Promise.all([client.invalidateQueries({queryKey:['list',brand?.id,listId]}),client.invalidateQueries({queryKey:['subscribers',brand?.id,listId]}),client.invalidateQueries({queryKey:['segments',brand?.id,listId]})])}
   if(!list)return <div className="p-8">Loading audience…</div>

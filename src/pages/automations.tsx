@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -134,6 +135,7 @@ type AutomationReport = {
 
 export default function AutomationsPage() {
   const { brand } = useAuth();
+  const [searchParams] = useSearchParams();
   const client = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Automation | null>(null);
@@ -150,6 +152,11 @@ export default function AutomationsPage() {
     queryFn: () => get<Automation[]>(`/api/brands/${brand?.id}/automations`),
     enabled: !!brand,
   });
+  useEffect(() => {
+    const automationId = searchParams.get("automation");
+    const target = query.data?.find((item) => item.id === automationId);
+    if (target) setSelected(target);
+  }, [query.data, searchParams]);
   const lists = useQuery({
     queryKey: ["lists", brand?.id],
     queryFn: () => get<ListItem[]>(`/api/brands/${brand?.id}/lists`),

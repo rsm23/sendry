@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BellRing, CalendarDays, Copy, FileCode2, Mail, MessageCircle, MoreHorizontal, Pause, Play, Plus, Search, Smartphone, Sparkles, Trash2 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { get, post, remove } from '@/lib/api'
@@ -18,7 +18,7 @@ import { toast } from 'sonner'
 type Campaign = { id: string; subject: string; label: string; status: string; total_recipients: number; delivered: number; failed: number; sent_at?: string; scheduled_at?: string; created_at: string; channel?: string; channelNative?: boolean }
 
 export default function CampaignsPage({ reportsOnly = false }: { reportsOnly?: boolean }) {
-  const { brand } = useAuth(); const navigate = useNavigate(); const [status, setStatus] = useState(reportsOnly ? 'sent' : 'all'); const [search, setSearch] = useState('')
+  const { brand } = useAuth(); const navigate = useNavigate(); const [searchParams] = useSearchParams(); const [status, setStatus] = useState(reportsOnly ? 'sent' : 'all'); const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const query = useQuery({ queryKey: ['campaigns', brand?.id, status, search], queryFn: () => get<Campaign[]>(`/api/brands/${brand?.id}/campaigns?${status !== 'all' ? `status=${status}&` : ''}q=${encodeURIComponent(search)}`), enabled: !!brand })
   const channelQuery = useQuery({ queryKey: ['channel-campaigns', brand?.id], queryFn: () => get<{data: Array<Record<string, unknown>>}>(`/api/v2/brands/${brand?.id}/campaigns`).then((result): Campaign[] => result.data.map((item) => ({ id: String(item.id), subject: String(item.name), label: `${String(item.channel).toUpperCase()} · ${String(item.purpose)}`, status: String(item.status), total_recipients: Number(item.total_recipients ?? 0), delivered: Number(item.delivered ?? 0), failed: Number(item.failed ?? 0), scheduled_at: item.scheduled_at ? String(item.scheduled_at) : undefined, created_at: String(item.created_at), channel: String(item.channel), channelNative: true }))), enabled: !!brand })
   const campaigns = [...(channelQuery.data ?? []), ...(query.data ?? [])].filter((campaign) => (status === 'all' || campaign.status === status) && `${campaign.subject} ${campaign.label}`.toLowerCase().includes(search.toLowerCase()))

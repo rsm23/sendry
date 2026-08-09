@@ -88,6 +88,76 @@ describe("Sendry API", () => {
     ).toBe("sk-private-test");
   });
 
+  it("searches workspace resources across product areas", async () => {
+    const august = await agent
+      .get("/api/brands/brd_atlas/search?q=August")
+      .expect(200);
+    expect(august.body.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "campaign",
+          title: "August product notes",
+          path: "/campaigns/cmp_august_notes/report",
+        }),
+      ]),
+    );
+
+    const people = await agent
+      .get("/api/brands/brd_atlas/search?q=Sofia")
+      .expect(200);
+    expect(people.body.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "contact", title: "Sofia Martin" }),
+        expect.objectContaining({
+          kind: "conversation",
+          path: "/inbox?conversation=cnv_sofia",
+        }),
+      ]),
+    );
+
+    const mixed = await agent
+      .get("/api/brands/brd_atlas/search?q=Basic")
+      .expect(200);
+    expect(mixed.body.results[0]).toEqual(
+      expect.objectContaining({
+        kind: "template",
+        title: "Basic",
+        path: "/templates/tpl_basic/builder",
+      }),
+    );
+
+    await agent.get("/api/brands/brd_atlas/search?q=a").expect(422);
+
+    await agent
+      .post("/api/brands/brd_atlas/members")
+      .send({
+        name: "Template Reviewer",
+        email: "reviewer@sendry.local",
+        password: "ReviewerPass123!",
+        role: "client",
+        permissions: ["templates"],
+      })
+      .expect(201);
+    await agent.post("/api/auth/logout").expect(204);
+    await agent
+      .post("/api/auth/login")
+      .send({ email: "reviewer@sendry.local", password: "ReviewerPass123!" })
+      .expect(200);
+
+    const restricted = await agent
+      .get("/api/brands/brd_atlas/search?q=August")
+      .expect(200);
+    expect(restricted.body.results).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "campaign" })]),
+    );
+    const allowed = await agent
+      .get("/api/brands/brd_atlas/search?q=Basic")
+      .expect(200);
+    expect(allowed.body.results).toEqual(
+      expect.arrayContaining([expect.objectContaining({ kind: "template" })]),
+    );
+  });
+
   it("does not reuse an AI key when the provider changes", async () => {
     await agent
       .patch("/api/brands/brd_atlas")

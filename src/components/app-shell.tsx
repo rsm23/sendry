@@ -2,8 +2,8 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Activity, Bell, Bot, ChartNoAxesCombined, ChevronDown, FileStack, Files, Gauge, Inbox, ListFilter, LogOut, RadioTower,
-  Mail, Megaphone, Plus, Search, Settings, ShieldCheck, Sparkles, UsersRound, Workflow,
+  Activity, Bell, ChartNoAxesCombined, ChevronDown, FileStack, Files, Gauge, Inbox, LogOut, RadioTower,
+  Mail, Megaphone, Plus, Search, Settings, ShieldCheck, UsersRound, Workflow,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -13,14 +13,13 @@ import {
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { get } from '@/lib/api'
 import { patch } from '@/lib/api'
 import { PreferencesMenu } from '@/components/preferences-menu'
 import { useI18n } from '@/i18n/context'
 import { localizeAlert } from '@/lib/alerts'
 import { cn } from '@/lib/utils'
+import { GlobalSearch } from '@/components/global-search'
 
 type NotificationOverview = { alerts: Array<{ id: string; severity: string; title: string; detail: string }>; campaigns: Array<{ id: string; subject: string; status: string; scheduled_at?: string }> }
 
@@ -126,19 +125,14 @@ export function AppShell() {
         <header className={cn("sticky top-0 z-30 h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6", builderMode ? "hidden" : "flex")}>
           <SidebarTrigger/>
           <div className="hidden items-center gap-2 text-sm sm:flex"><span className="text-muted-foreground" translate="no">{brand?.name}</span><span className="text-muted-foreground/40">/</span><span className="font-medium">{active?.label ?? 'Workspace'}</span></div>
-          <button onClick={() => setSearchOpen(true)} className="mx-auto flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 rounded-lg border bg-card px-3 text-start text-sm text-muted-foreground shadow-none outline-none hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring"><Search className="size-4 shrink-0"/><span className="truncate">Search conversations, contacts, campaigns…</span><kbd className="ms-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[0.65rem] sm:inline">{searchShortcut}</kbd></button>
+          <button onClick={() => setSearchOpen(true)} className="mx-auto flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 rounded-lg border bg-card px-3 text-start text-sm text-muted-foreground shadow-none outline-none hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring" aria-label="Search anything in Sendry"><Search className="size-4 shrink-0"/><span className="truncate">Search anything in Sendry…</span><kbd className="ms-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[0.65rem] sm:inline">{searchShortcut}</kbd></button>
           <PreferencesMenu onLocaleChange={(language) => patch('/api/settings/profile', { language })} onThemeChange={(theme) => patch('/api/settings/profile', { theme })} />
           <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ms-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => { const copy = localizeAlert(alert, t); return <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{copy.title}</strong><span className="block text-xs text-muted-foreground">{copy.detail}</span></span></DropdownMenuItem> })}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           {can('campaigns') && <Button size="sm" onClick={() => navigate('/campaigns/new')} className="hidden sm:inline-flex"><Plus/> Create campaign</Button>}
         </header>
         <main className={cn("min-w-0", builderMode ? "h-svh overflow-hidden" : "page-gutter")}><Outlet/></main>
       </SidebarInset>
-      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
-        <DialogContent className="top-[28%] max-w-xl p-0">
-          <DialogHeader className="sr-only"><DialogTitle>Search Sendry</DialogTitle><DialogDescription>Open a product area or action.</DialogDescription></DialogHeader>
-          <Command><CommandInput placeholder="Search Sendry…"/><CommandList><CommandEmpty>No results found.</CommandEmpty><CommandGroup heading="Navigate">{availableNavigation.map((item) => <CommandItem key={item.path} onSelect={() => { navigate(item.path); setSearchOpen(false) }}><item.icon/>{item.label}</CommandItem>)}</CommandGroup><CommandGroup heading="Actions">{can('campaigns') && <CommandItem onSelect={() => { navigate('/campaigns/new'); setSearchOpen(false) }}><Sparkles/>Create campaign</CommandItem>}{can('automations') && <CommandItem onSelect={() => { navigate('/automations'); setSearchOpen(false) }}><Bot/>Build automation</CommandItem>}{can('lists') && <CommandItem onSelect={() => { navigate('/audiences'); setSearchOpen(false) }}><ListFilter/>Explore audiences</CommandItem>}</CommandGroup></CommandList></Command>
-        </DialogContent>
-      </Dialog>
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} navigation={availableNavigation} settingsEnabled={can('settings')}/>
     </SidebarProvider>
   )
 }

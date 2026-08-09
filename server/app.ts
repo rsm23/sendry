@@ -240,6 +240,8 @@ function requireBrand(db: AppDatabase) {
           suffix.includes("/export") ||
           suffix.endsWith("/web"))
           ? "reports"
+          : suffix.startsWith("/search")
+            ? null
           : suffix.startsWith("/campaigns") || suffix.startsWith("/ai")
             ? "campaigns"
             : suffix.startsWith("/templates")
@@ -1256,6 +1258,277 @@ export function createApp(options: CreateOptions = {}) {
         campaigns,
         provider,
         alerts,
+      });
+    },
+  );
+
+  app.get(
+    "/api/brands/:brandId/search",
+    requireAuth,
+    requireBrand(db),
+    async (request, response) => {
+      const parsed = z.string().trim().min(2).max(100).safeParse(request.query.q);
+      if (!parsed.success)
+        return response.status(422).json({ error: "Enter at least two characters" });
+
+      const brandId = routeParam(request, "brandId");
+      const query = parsed.data;
+      const pattern = `%${query}%`;
+      const member = request.authUser
+        ? (db
+            .prepare(
+              "SELECT permissions FROM brand_members WHERE brand_id=? AND user_id=?",
+            )
+            .get(brandId, request.authUser.id) as { permissions: string } | undefined)
+        : undefined;
+      const permissions = request.authKind === "api"
+        ? request.apiScopes ?? []
+        : member
+          ? (JSON.parse(member.permissions) as string[])
+          : [];
+      const can = (permission: string) =>
+        permissions.includes("*") ||
+        permissions.includes(permission) ||
+        permissions.includes(`${permission}:read`);
+      const results: Array<{
+        id: string;
+        kind: string;
+        title: string;
+        subtitle: string;
+        path: string;
+        rank: number;
+      }> = [];
+      const rank = (value: unknown) => {
+        const candidate = String(value ?? "").toLocaleLowerCase();
+        const needle = query.toLocaleLowerCase();
+        return candidate === needle ? 0 : candidate.startsWith(needle) ? 1 : 2;
+      };
+      const add = (
+        kind: string,
+        row: Record<string, unknown>,
+        title: unknown,
+        subtitle: unknown,
+        path: string,
+      ) => results.push({
+        id: String(row.id),
+        kind,
+        title: String(title || "Untitled"),
+        subtitle: String(subtitle || ""),
+        path,
+        rank: rank(title),
+      });
+
+      if (can("campaigns") || can("reports")) {
+        const campaigns = db
+          .prepare(
+            `SELECT id,subject,label,status FROM campaigns
+             WHERE brand_id=? AND (subject LIKE ? OR label LIKE ?)
+             ORDER BY CASE WHEN lower(subject)=lower(?) THEN 0 WHEN lower(subject) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             COALESCE(sent_at,scheduled_at,created_at) DESC LIMIT 6`,
+          )
+          .all(brandId, pattern, pattern, query, query) as Record<string, unknown>[];
+        for (const campaign of campaigns) {
+          const destination = campaign.status === "sent"
+            ? `/campaigns/${campaign.id}/report`
+            : `/campaigns/${campaign.id}`;
+          add(
+            "campaign",
+            campaign,
+            campaign.subject,
+            [campaign.label, campaign.status].filter(Boolean).join(" · "),
+            destination,
+          );
+        }
+
+        const channelCampaigns = await multiChannel.store.listCampaigns(brandId);
+        for (const campaign of channelCampaigns
+          .filter((item) => `${item.name ?? ""} ${item.channel ?? ""} ${item.status ?? ""}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+          .sort((left, right) => rank(left.name) - rank(right.name))
+          .slice(0, 6))
+          add(
+            "campaign",
+            campaign,
+            campaign.name,
+            [campaign.channel, campaign.status].filter(Boolean).join(" · "),
+            `/campaigns?search=${encodeURIComponent(String(campaign.name ?? ""))}`,
+          );
+      }
+
+      if (can("templates")) {
+        const rows = db
+          .prepare(
+            `SELECT id,name,subject FROM templates
+             WHERE brand_id=? AND (name LIKE ? OR subject LIKE ?)
+             ORDER BY CASE WHEN lower(name)=lower(?) THEN 0 WHEN lower(name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             updated_at DESC LIMIT 6`,
+          )
+          .all(brandId, pattern, pattern, query, query) as Record<string, unknown>[];
+        for (const row of rows)
+          add("template", row, row.name, row.subject, `/templates/${row.id}/builder`);
+      }
+
+      if (can("lists")) {
+        const audiences = db
+          .prepare(
+            `SELECT id,name,opt_in FROM lists WHERE brand_id=? AND name LIKE ?
+             ORDER BY CASE WHEN lower(name)=lower(?) THEN 0 WHEN lower(name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             updated_at DESC LIMIT 6`,
+          )
+          .all(brandId, pattern, query, query) as Record<string, unknown>[];
+        for (const row of audiences)
+          add("audience", row, row.name, row.opt_in, `/audiences/${row.id}`);
+
+        const subscribers = db
+          .prepare(
+            `SELECT s.id,s.list_id,s.name,s.email,s.status,l.name AS list_name
+             FROM subscribers s JOIN lists l ON l.id=s.list_id
+             WHERE l.brand_id=? AND (s.name LIKE ? OR s.email LIKE ?)
+             ORDER BY CASE WHEN lower(s.name)=lower(?) THEN 0 WHEN lower(s.name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             s.updated_at DESC LIMIT 6`,
+          )
+          .all(brandId, pattern, pattern, query, query) as Record<string, unknown>[];
+        for (const row of subscribers)
+          add(
+            "subscriber",
+            row,
+            row.name || row.email,
+            [row.email, row.list_name, row.status].filter(Boolean).join(" · "),
+            `/audiences/${row.list_id}?subscriber=${row.id}`,
+          );
+      }
+
+      if (can("automations")) {
+        const rows = db
+          .prepare(
+            `SELECT a.id,a.name,a.type,a.enabled,l.name AS list_name
+             FROM automations a JOIN lists l ON l.id=a.list_id
+             WHERE l.brand_id=? AND (a.name LIKE ? OR l.name LIKE ?)
+             ORDER BY CASE WHEN lower(a.name)=lower(?) THEN 0 WHEN lower(a.name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             a.updated_at DESC LIMIT 6`,
+          )
+          .all(brandId, pattern, pattern, query, query) as Record<string, unknown>[];
+        for (const row of rows)
+          add(
+            "automation",
+            row,
+            row.name,
+            [row.list_name, row.type].filter(Boolean).join(" · "),
+            `/automations?automation=${row.id}`,
+          );
+      }
+
+      if (can("files")) {
+        const rows = db
+          .prepare(
+            `SELECT id,parent_id,kind,name,mime_type FROM files WHERE brand_id=? AND name LIKE ?
+             ORDER BY CASE WHEN lower(name)=lower(?) THEN 0 WHEN lower(name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             updated_at DESC LIMIT 8`,
+          )
+          .all(brandId, pattern, query, query) as Record<string, unknown>[];
+        for (const row of rows) {
+          const targetFolder = row.kind === "folder" ? row.id : row.parent_id;
+          const params = new URLSearchParams();
+          if (targetFolder) params.set("parentId", String(targetFolder));
+          if (row.kind !== "folder") params.set("highlight", String(row.id));
+          add(
+            "file",
+            row,
+            row.name,
+            row.mime_type || row.kind,
+            `/files${params.size ? `?${params}` : ""}`,
+          );
+        }
+      }
+
+      if (can("rules")) {
+        const rows = db
+          .prepare(
+            `SELECT id,name,trigger_type,action_type FROM rules
+             WHERE brand_id=? AND (name LIKE ? OR trigger_type LIKE ? OR action_type LIKE ?)
+             ORDER BY CASE WHEN lower(name)=lower(?) THEN 0 WHEN lower(name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             updated_at DESC LIMIT 6`,
+          )
+          .all(brandId, pattern, pattern, pattern, query, query) as Record<string, unknown>[];
+        for (const row of rows)
+          add(
+            "rule",
+            row,
+            row.name,
+            [row.trigger_type, row.action_type].filter(Boolean).join(" · "),
+            "/rules",
+          );
+      }
+
+      if (can("settings")) {
+        const teammates = db
+          .prepare(
+            `SELECT bm.id,bm.role,u.name,u.email FROM brand_members bm JOIN users u ON u.id=bm.user_id
+             WHERE bm.brand_id=? AND (u.name LIKE ? OR u.email LIKE ? OR bm.role LIKE ?)
+             ORDER BY CASE WHEN lower(u.name)=lower(?) THEN 0 WHEN lower(u.name) LIKE lower(?)||'%' THEN 1 ELSE 2 END,
+             u.name LIMIT 6`,
+          )
+          .all(brandId, pattern, pattern, pattern, query, query) as Record<string, unknown>[];
+        for (const row of teammates)
+          add(
+            "teammate",
+            row,
+            row.name,
+            [row.email, row.role].filter(Boolean).join(" · "),
+            `/settings?section=team&member=${row.id}`,
+          );
+
+        const connections = await multiChannel.store.listConnections(brandId);
+        for (const connection of connections
+          .filter((item) => `${item.name ?? ""} ${item.channel ?? ""} ${item.provider ?? ""}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+          .sort((left, right) => rank(left.name) - rank(right.name))
+          .slice(0, 6))
+          add(
+            "connection",
+            connection,
+            connection.name,
+            [connection.channel, connection.provider, connection.status].filter(Boolean).join(" · "),
+            "/channels",
+          );
+      }
+
+      if (can("inbox") || can("campaigns")) {
+        const [contacts, conversations] = await Promise.all([
+          multiChannel.store.listContacts(brandId, query),
+          multiChannel.store.listConversations(brandId, "all", request.authUser?.id),
+        ]);
+        for (const contact of contacts
+          .sort((left, right) => rank(left.display_name) - rank(right.display_name))
+          .slice(0, 6)) {
+          const identifiers = Array.isArray(contact.identifiers)
+            ? contact.identifiers as Array<Record<string, unknown>>
+            : [];
+          const primary = identifiers.find((item) => item.is_primary) ?? identifiers[0];
+          add(
+            "contact",
+            contact,
+            contact.display_name || primary?.value,
+            [primary?.value, contact.company].filter(Boolean).join(" · "),
+            `/inbox?contact=${contact.id}`,
+          );
+        }
+        for (const conversation of conversations
+          .filter((item) => `${item.contact_name ?? ""} ${item.contact_address ?? ""} ${item.preview ?? ""}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+          .sort((left, right) => rank(left.contact_name) - rank(right.contact_name))
+          .slice(0, 6))
+          add(
+            "conversation",
+            conversation,
+            conversation.contact_name,
+            conversation.preview,
+            `/inbox?conversation=${conversation.id}`,
+          );
+      }
+
+      response.json({
+        query,
+        results: results
+          .sort((left, right) => left.rank - right.rank || left.title.localeCompare(right.title))
+          .map(({ rank: _rank, ...result }) => result),
       });
     },
   );

@@ -59,8 +59,8 @@ test("opens the app-shell dropdown menus without crashing", async ({ page }) => 
 });
 
 test("opens search with macOS and Windows keyboard shortcuts", async ({ page }) => {
-  const searchInput = page.getByPlaceholder("Search Sendry…");
-  const searchButton = page.getByRole("button", { name: /Search conversations/ });
+  const searchInput = page.getByPlaceholder("Search anything in Sendry…");
+  const searchButton = page.getByRole("button", { name: "Search anything in Sendry" });
   await expect(searchButton).toBeVisible();
   const expectedShortcut = await page.evaluate(() =>
     /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘ K" : "Ctrl K",
@@ -76,6 +76,88 @@ test("opens search with macOS and Windows keyboard shortcuts", async ({ page }) 
   await expect(searchInput).toBeVisible();
 });
 
+test("searches settings and workspace records from the command palette", async ({ page }) => {
+  await page.getByRole("button", { name: "Search anything in Sendry" }).click();
+  const searchInput = page.getByPlaceholder("Search anything in Sendry…");
+
+  await searchInput.fill("SMTP host");
+  await expect(page.getByText("Delivery provider", { exact: true })).toBeVisible();
+  await page.getByText("Delivery provider", { exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\?section=sending#delivery-provider$/);
+  await expect(page.getByRole("tab", { name: "Sending" })).toHaveAttribute("data-active");
+
+  await page.getByRole("button", { name: "Search anything in Sendry" }).click();
+  await searchInput.fill("QA Admin");
+  await expect(page.getByText("qa@sendry.local · owner", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Search anything in Sendry" }).click();
+  await searchInput.fill("Fresh picks");
+  await expect(page.getByText("Fresh picks weekly", { exact: true })).toBeVisible();
+  await page.getByText("Fresh picks weekly", { exact: true }).click();
+  await expect(page).toHaveURL(/\/templates\/tpl_weekly\/builder$/);
+});
+
+test("keeps global search usable in every locale and dark mode", async ({ page }) => {
+  await page.evaluate(async () => {
+    const response = await fetch("/api/settings/profile", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language: "en", theme: "light" }),
+    });
+    if (!response.ok) throw new Error("Unable to reset locale and theme");
+  });
+  await page.reload();
+  const preferences = page.locator('header button:has(svg.lucide-languages)');
+  const choosePreference = async (name: string) => {
+    await preferences.click();
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.url().endsWith("/api/settings/profile") && response.request().method() === "PATCH",
+      ),
+      page.getByRole("menuitemradio", { name, exact: true }).click(),
+    ]);
+  };
+
+  await choosePreference("Dark");
+  await expect(page.locator("html")).toHaveClass(/dark/);
+
+  const localeCases = [
+    { nativeName: "English", direction: "ltr", button: "Search anything in Sendry", placeholder: "Search anything in Sendry…", result: "Delivery provider" },
+    { nativeName: "Français", direction: "ltr", button: "Rechercher partout dans Sendry", placeholder: "Rechercher partout dans Sendry…", result: "Prestataire de livraison" },
+    { nativeName: "Español", direction: "ltr", button: "Buscar en todo Sendry", placeholder: "Buscar en todo Sendry…", result: "Proveedor de entrega" },
+    { nativeName: "العربية", direction: "rtl", button: "ابحث عن أي شيء في Sendry", placeholder: "ابحث عن أي شيء في Sendry…", result: "مزود التوصيل" },
+  ];
+  for (const [index, locale] of localeCases.entries()) {
+    if (index > 0) await choosePreference(locale.nativeName);
+    await expect(page.locator("html")).toHaveAttribute("dir", locale.direction);
+    await page.getByRole("button", { name: locale.button, exact: true }).click();
+    const input = page.getByPlaceholder(locale.placeholder);
+    await input.fill("SMTP");
+    await expect(page.getByText(locale.result, { exact: true })).toBeVisible();
+    const dialogBox = await page.getByRole("dialog").boundingBox();
+    const viewport = page.viewportSize();
+    expect(dialogBox).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(0);
+    expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport!.width);
+    await page.keyboard.press("Escape");
+  }
+
+  await page.evaluate(async () => {
+    const response = await fetch("/api/settings/profile", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language: "en", theme: "light" }),
+    });
+    if (!response.ok) throw new Error("Unable to restore locale and theme");
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
+});
+
 test("shows Ctrl K in the shortcut hint on Windows", async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "platform", {
@@ -85,7 +167,7 @@ test("shows Ctrl K in the shortcut hint on Windows", async ({ page }) => {
   });
   await page.reload();
 
-  const searchButton = page.getByRole("button", { name: /Search conversations/ });
+  const searchButton = page.getByRole("button", { name: "Search anything in Sendry" });
   await expect(searchButton).toBeVisible();
   await expect(searchButton.locator("kbd")).toHaveText("Ctrl K");
 });
