@@ -12,11 +12,13 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { get, patch, post, remove } from "@/lib/api";
 import { shortDate } from "@/lib/format";
+import { createDefaultEmailDocument, emailDocumentFromTemplate, renderEmailDocument, renderPlainText } from "@/lib/email-builder";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -52,6 +54,7 @@ type Template = {
   plain_text: string;
   html_text: string;
   editor_mode: string;
+  editor_data: unknown;
   updated_at: string;
 };
 
@@ -90,30 +93,31 @@ export default function TemplatesPage() {
           requirements:
             "Accessible, responsive, one primary action and subscription links.",
         });
+        const document = emailDocumentFromTemplate(null, generated.html);
         return post<Template>(`/api/brands/${brand?.id}/templates`, {
           name: generated.title,
           subject: generated.subject,
           plain_text: generated.plainText,
           html_text: generated.html,
           editor_mode: "blocks",
-          editor_data: {},
+          editor_data: document,
         });
       }
+      const document = createDefaultEmailDocument();
       return post<Template>(`/api/brands/${brand?.id}/templates`, {
         name,
         subject: "",
-        plain_text: "",
-        html_text:
-          "<h1>Template headline</h1><p>Write your message.</p><p>[unsubscribe]</p>",
+        plain_text: renderPlainText(document),
+        html_text: renderEmailDocument(document),
         editor_mode: "blocks",
-        editor_data: {},
+        editor_data: document,
       });
     },
     onSuccess: async (template) => {
       await client.invalidateQueries({ queryKey: ["templates", brand?.id] });
       setCreateOpen(false);
       toast.success("Template created");
-      setPreview(template);
+      navigate(`/templates/${template.id}/builder`);
     },
   });
   async function duplicate(template: Template) {
@@ -123,7 +127,7 @@ export default function TemplatesPage() {
       plain_text: template.plain_text,
       html_text: template.html_text,
       editor_mode: template.editor_mode,
-      editor_data: {},
+      editor_data: template.editor_data ?? {},
     });
     await query.refetch();
     toast.success("Template duplicated");
@@ -140,7 +144,7 @@ export default function TemplatesPage() {
         plain_text: template.plain_text,
         html_text: template.html_text,
         editor_mode: template.editor_mode === "html" ? "html" : "blocks",
-        editor_data: {},
+        editor_data: template.editor_data ?? {},
         query_string: "",
         web_language: "en",
         opens_tracking: "identified",
@@ -246,6 +250,10 @@ export default function TemplatesPage() {
                     <DropdownMenuItem onClick={() => setPreview(template)}>
                       <Eye />
                       Preview
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate(`/templates/${template.id}/builder`)}>
+                      <WandSparkles />
+                      Design template
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => void applyTemplate(template)}
@@ -440,6 +448,12 @@ export default function TemplatesPage() {
             >
               Close
             </Button>
+            {preview && !editing && (
+              <Button variant="outline" onClick={() => navigate(`/templates/${preview.id}/builder`)}>
+                <WandSparkles />
+                Open builder
+              </Button>
+            )}
             {preview && !editing && (
               <Button variant="outline" onClick={() => setEditing(true)}>
                 <Edit3 />

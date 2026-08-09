@@ -20,6 +20,7 @@ import { patch } from '@/lib/api'
 import { PreferencesMenu } from '@/components/preferences-menu'
 import { useI18n } from '@/i18n/context'
 import { localizeAlert } from '@/lib/alerts'
+import { cn } from '@/lib/utils'
 
 type NotificationOverview = { alerts: Array<{ id: string; severity: string; title: string; detail: string }>; campaigns: Array<{ id: string; subject: string; status: string; scheduled_at?: string }> }
 
@@ -47,6 +48,7 @@ export function AppShell() {
   const permissions = useMemo(() => (brand?.permissions as string[] | undefined) ?? [], [brand?.permissions])
   const availableNavigation = useMemo(() => navigation.filter((item) => !item.permission || permissions.includes('*') || permissions.includes(item.permission) || (item.permission === 'inbox' && permissions.includes('campaigns')) || (item.permission === 'channels' && permissions.includes('settings'))), [permissions])
   const active = useMemo(() => availableNavigation.find((item) => location.pathname.startsWith(item.path)), [availableNavigation, location.pathname])
+  const builderMode = /^\/templates\/[^/]+\/builder$/.test(location.pathname)
   const can = (permission: string) => permissions.includes('*') || permissions.includes(permission)
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function AppShell() {
   }, [])
 
   return (
-    <SidebarProvider style={{ '--sidebar-width': '14.25rem' } as React.CSSProperties}>
+    <SidebarProvider open={builderMode ? false : undefined} style={{ '--sidebar-width': '14.25rem' } as React.CSSProperties}>
       <Sidebar side={direction === 'rtl' ? 'right' : 'left'} dir={direction} collapsible="icon" className="border-e border-sidebar-border">
         <SidebarHeader className="gap-3 px-3 py-4">
           <button className="flex h-9 items-center gap-2 px-1 text-start" onClick={() => navigate('/overview')} aria-label="Sendry overview">
@@ -121,7 +123,7 @@ export function AppShell() {
         <SidebarRail/>
       </Sidebar>
       <SidebarInset className="min-w-0 bg-background">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6">
+        <header className={cn("sticky top-0 z-30 h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur sm:px-6", builderMode ? "hidden" : "flex")}>
           <SidebarTrigger/>
           <div className="hidden items-center gap-2 text-sm sm:flex"><span className="text-muted-foreground" translate="no">{brand?.name}</span><span className="text-muted-foreground/40">/</span><span className="font-medium">{active?.label ?? 'Workspace'}</span></div>
           <button onClick={() => setSearchOpen(true)} className="mx-auto flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 rounded-lg border bg-card px-3 text-start text-sm text-muted-foreground shadow-none outline-none hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring"><Search className="size-4 shrink-0"/><span className="truncate">Search conversations, contacts, campaigns…</span><kbd className="ms-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[0.65rem] sm:inline">{searchShortcut}</kbd></button>
@@ -129,7 +131,7 @@ export function AppShell() {
           <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ms-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => { const copy = localizeAlert(alert, t); return <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{copy.title}</strong><span className="block text-xs text-muted-foreground">{copy.detail}</span></span></DropdownMenuItem> })}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           {can('campaigns') && <Button size="sm" onClick={() => navigate('/campaigns/new')} className="hidden sm:inline-flex"><Plus/> Create campaign</Button>}
         </header>
-        <main className="page-gutter min-w-0"><Outlet/></main>
+        <main className={cn("min-w-0", builderMode ? "h-svh overflow-hidden" : "page-gutter")}><Outlet/></main>
       </SidebarInset>
       <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
         <DialogContent className="top-[28%] max-w-xl p-0">

@@ -5598,6 +5598,8 @@ function sanitizeEmailHtml(value: string) {
       "html",
       "head",
       "body",
+      "meta",
+      "style",
       "img",
     ],
     allowedAttributes: {
@@ -5612,6 +5614,7 @@ function sanitizeEmailHtml(value: string) {
       ],
       a: ["href", "name", "target", "rel"],
       img: ["src", "alt", "width", "height"],
+      meta: ["name", "content", "charset"],
       table: [
         "width",
         "height",

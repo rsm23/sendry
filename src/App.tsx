@@ -12,6 +12,7 @@ const CampaignsPage = lazy(() => import('@/pages/campaigns'))
 const ComposerPage = lazy(() => import('@/pages/composer'))
 const ReportPage = lazy(() => import('@/pages/report'))
 const TemplatesPage = lazy(() => import('@/pages/templates'))
+const TemplateBuilderPage = lazy(() => import('@/pages/template-builder'))
 const AudiencesPage = lazy(() => import('@/pages/audiences'))
 const AudiencePage = lazy(() => import('@/pages/audience'))
 const AutomationsPage = lazy(() => import('@/pages/automations'))
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/campaigns/:campaignId/report" element={<ReportPage />} />
           <Route path="/reports" element={<CampaignsPage reportsOnly />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/templates/:templateId/builder" element={<TemplateBuilderPage />} />
           <Route path="/audiences" element={<AudiencesPage />} />
           <Route path="/audiences/:listId" element={<AudiencePage />} />
           <Route path="/automations" element={<AutomationsPage />} />
