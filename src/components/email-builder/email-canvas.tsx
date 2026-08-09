@@ -1,16 +1,18 @@
+import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, GripVertical, Trash2 } from "lucide-react";
 import { useI18n } from "@/i18n/context";
-import { EMAIL_BLOCK_DEFINITIONS, renderEmailBlock, type EmailBlockType, type EmailDevice, type EmailDocument } from "@/lib/email-builder";
+import { createEmailBlock, EMAIL_BLOCK_DEFINITIONS, renderEmailBlock, type EmailBlock, type EmailBlockType, type EmailDevice, type EmailDocument } from "@/lib/email-builder";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const deviceWidths: Record<EmailDevice, number> = { desktop: 640, tablet: 520, mobile: 320 };
 
-export function EmailCanvas({ document, selectedId, device, zoom, onSelect, onAdd, onMove, onDuplicate, onDelete }: {
+export function EmailCanvas({ document, selectedId, device, zoom, draggedType = null, onSelect, onAdd, onMove, onDuplicate, onDelete }: {
   document: EmailDocument;
   selectedId: string | null;
   device: EmailDevice;
   zoom: number;
+  draggedType?: EmailBlockType | null;
   onSelect: (id: string | null) => void;
   onAdd: (type: EmailBlockType, index: number) => void;
   onMove: (id: string, index: number) => void;
@@ -18,12 +20,29 @@ export function EmailCanvas({ document, selectedId, device, zoom, onSelect, onAd
   onDelete: (id: string) => void;
 }) {
   const { t } = useI18n();
+  const [draggedBlockId, setDraggedBlockId] = useState<string | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const draggedLibraryBlock = useMemo(() => draggedType ? createEmailBlock(draggedType) : null, [draggedType]);
+  const draggedCanvasBlock = draggedBlockId ? document.blocks.find((block) => block.id === draggedBlockId) ?? null : null;
+  const previewBlock = draggedLibraryBlock ?? draggedCanvasBlock;
+
+  const setDropEffect = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = draggedType ? "copy" : "move";
+  };
+  const showPreview = (event: React.DragEvent, index: number) => {
+    setDropEffect(event);
+    setPreviewIndex(index);
+  };
   const handleDrop = (event: React.DragEvent, index: number) => {
     event.preventDefault();
-    const type = event.dataTransfer.getData("application/x-sendry-block-type") as EmailBlockType;
-    const blockId = event.dataTransfer.getData("application/x-sendry-block-id");
+    event.stopPropagation();
+    const type = (event.dataTransfer.getData("application/x-sendry-block-type") || draggedType) as EmailBlockType;
+    const blockId = event.dataTransfer.getData("application/x-sendry-block-id") || draggedBlockId;
     if (type) onAdd(type, index);
     else if (blockId) onMove(blockId, index);
+    setPreviewIndex(null);
+    setDraggedBlockId(null);
   };
   return (
     <div className="flex min-h-0 flex-1 justify-center overflow-auto bg-muted/45 p-4 sm:p-6" onClick={() => onSelect(null)}>
@@ -33,7 +52,7 @@ export function EmailCanvas({ document, selectedId, device, zoom, onSelect, onAd
         data-device={device}
         aria-label={`${device} email canvas`}
       >
-        <DropZone index={0} onDrop={handleDrop} />
+        <DropZone index={0} active={previewIndex === 0} previewBlock={previewBlock} onDragOver={showPreview} onDrop={handleDrop} />
         {document.blocks.map((block, index) => {
           const selected = selectedId === block.id;
           const definition = EMAIL_BLOCK_DEFINITIONS.find((item) => item.type === block.type);
@@ -49,7 +68,15 @@ export function EmailCanvas({ document, selectedId, device, zoom, onSelect, onAd
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData("application/x-sendry-block-id", block.id);
+                  event.dataTransfer.setData("text/plain", block.id);
+                  setDraggedBlockId(block.id);
                 }}
+                onDragEnd={() => { setDraggedBlockId(null); setPreviewIndex(null); }}
+                onDragOver={(event) => {
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  showPreview(event, event.clientY < bounds.top + bounds.height / 2 ? index : index + 1);
+                }}
+                onDrop={(event) => handleDrop(event, previewIndex ?? index)}
                 onClick={(event) => { event.stopPropagation(); onSelect(block.id); }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(block.id); }
@@ -68,7 +95,7 @@ export function EmailCanvas({ document, selectedId, device, zoom, onSelect, onAd
                 </div>
                 <span className={`absolute start-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[0.6rem] font-medium text-primary-foreground ${selected ? "block" : "hidden group-focus-within:block group-hover:block"}`}>{t(definition?.label ?? block.type)}</span>
               </div>
-              <DropZone index={index + 1} onDrop={handleDrop} />
+              <DropZone index={index + 1} active={previewIndex === index + 1} previewBlock={previewBlock} onDragOver={showPreview} onDrop={handleDrop} />
             </div>
           );
         })}
@@ -78,6 +105,39 @@ export function EmailCanvas({ document, selectedId, device, zoom, onSelect, onAd
   );
 }
 
-function DropZone({ index, onDrop }: { index: number; onDrop: (event: React.DragEvent, index: number) => void }) {
-  return <div className="group/drop relative h-3" onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = event.dataTransfer.types.includes("application/x-sendry-block-type") ? "copy" : "move"; }} onDrop={(event) => onDrop(event, index)}><div className="absolute inset-x-3 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover/drop:bg-primary group-[.dragging]/drop:bg-primary" /><span className="pointer-events-none absolute start-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary px-2 py-0.5 text-[0.6rem] text-primary-foreground group-hover/drop:block">Drop content here</span></div>;
+function DropZone({ index, active, previewBlock, onDragOver, onDrop }: { index: number; active: boolean; previewBlock: EmailBlock | null; onDragOver: (event: React.DragEvent, index: number) => void; onDrop: (event: React.DragEvent, index: number) => void }) {
+  const { t } = useI18n();
+  return (
+    <div
+      className={`group/drop relative transition-[min-height,padding] duration-150 ${active && previewBlock ? "min-h-24 px-3 py-2" : "h-3"}`}
+      data-drop-index={index}
+      onDragEnter={(event) => onDragOver(event, index)}
+      onDragOver={(event) => onDragOver(event, index)}
+      onDrop={(event) => onDrop(event, index)}
+    >
+      {active && previewBlock ? <CanvasDropPreview block={previewBlock} /> : (
+        <>
+          <div className="absolute inset-x-3 top-1/2 h-px -translate-y-1/2 bg-transparent transition-colors group-hover/drop:bg-primary" />
+          <span className="pointer-events-none absolute start-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full bg-primary px-2 py-0.5 text-[0.6rem] text-primary-foreground group-hover/drop:block">{t("Drop content here")}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CanvasDropPreview({ block }: { block: EmailBlock }) {
+  const { t } = useI18n();
+  const definition = EMAIL_BLOCK_DEFINITIONS.find((item) => item.type === block.type);
+  return (
+    <div data-drag-preview className="pointer-events-none overflow-hidden rounded-lg border-2 border-dashed border-primary bg-primary/5 shadow-[0_10px_30px_-16px_color-mix(in_oklab,var(--primary)_55%,transparent)]" aria-hidden="true">
+      <div className="flex items-center justify-center gap-1.5 bg-primary/10 px-3 py-1.5 text-[0.65rem] font-semibold text-primary">
+        <span>{t(definition?.label ?? block.type)}</span>
+        <span aria-hidden="true">·</span>
+        <span>{t("Drop content here")}</span>
+      </div>
+      <div className="max-h-56 overflow-hidden opacity-45" translate="no" data-i18n-ignore>
+        {block.type === "html" ? <div className="m-5 rounded-md border border-dashed bg-white p-5 font-mono text-xs text-slate-500">Custom HTML<br />{block.content.html.slice(0, 140)}</div> : <table role="presentation" className="w-full border-collapse"><tbody dangerouslySetInnerHTML={{ __html: renderEmailBlock(block, true) }} /></table>}
+      </div>
+    </div>
+  );
 }

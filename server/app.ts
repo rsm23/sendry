@@ -5591,15 +5591,91 @@ function escapeHtml(value: string) {
   );
 }
 
+const emailStyleProperties = [
+  "-ms-text-size-adjust",
+  "-webkit-text-size-adjust",
+  "background",
+  "background-color",
+  "border",
+  "border-bottom",
+  "border-left",
+  "border-radius",
+  "border-right",
+  "border-top",
+  "box-sizing",
+  "color",
+  "display",
+  "font",
+  "font-family",
+  "font-size",
+  "font-style",
+  "font-weight",
+  "height",
+  "letter-spacing",
+  "line-height",
+  "margin",
+  "margin-bottom",
+  "margin-left",
+  "margin-right",
+  "margin-top",
+  "max-height",
+  "max-width",
+  "min-height",
+  "min-width",
+  "object-fit",
+  "opacity",
+  "outline",
+  "overflow",
+  "padding",
+  "padding-bottom",
+  "padding-left",
+  "padding-right",
+  "padding-top",
+  "text-align",
+  "text-decoration",
+  "text-size-adjust",
+  "vertical-align",
+  "width",
+] as const;
+
+const emailStylePropertySet = new Set<string>(emailStyleProperties);
+const safeInlineStyleValue = /^(?![\s\S]*(?:url\s*\(|expression\s*\(|javascript\s*:|data\s*:|-moz-binding|behavior\s*:))[\s\S]*$/i;
+const allowedEmailStyles = Object.fromEntries(
+  emailStyleProperties.map((property) => [property, [safeInlineStyleValue]]),
+);
+
+function sanitizeEmailCss(value: string) {
+  if (!value.trim() || value.length > 20_000) return "";
+  const css = value.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+  if (/(?:@(?:import|charset|namespace|supports|document|font-face|keyframes)|url\s*\(|expression\s*\(|javascript\s*:|data\s*:|-moz-binding|behavior\s*:|<)/i.test(css)) return "";
+  const atRules = css.match(/@[a-z-]+/gi) ?? [];
+  if (atRules.some((rule) => rule.toLowerCase() !== "@media")) return "";
+  let depth = 0;
+  for (const character of css) {
+    if (character === "{") depth += 1;
+    if (character === "}") depth -= 1;
+    if (depth < 0) return "";
+  }
+  if (depth !== 0) return "";
+  const properties = [...css.matchAll(/(?:^|[;{])\s*(-?[a-z][\w-]*)\s*:/gi)].map((match) => match[1].toLowerCase());
+  if (!properties.length || properties.some((property) => !emailStylePropertySet.has(property))) return "";
+  return css;
+}
+
 function sanitizeEmailHtml(value: string) {
-  return sanitizeHtml(value, {
+  const safeStyles: string[] = [];
+  const withoutStyleTags = value.replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (_match, css: string) => {
+    const safeCss = sanitizeEmailCss(css);
+    if (safeCss) safeStyles.push(safeCss);
+    return "";
+  });
+  const sanitized = sanitizeHtml(withoutStyleTags, {
     allowedTags: [
       ...sanitizeHtml.defaults.allowedTags,
       "html",
       "head",
       "body",
       "meta",
-      "style",
       "img",
     ],
     allowedAttributes: {
@@ -5646,5 +5722,11 @@ function sanitizeEmailHtml(value: string) {
     allowedSchemes: ["http", "https", "mailto", "tel", "cid"],
     allowedSchemesByTag: { img: ["http", "https", "cid", "data"] },
     allowProtocolRelative: false,
+    allowedStyles: { "*": allowedEmailStyles },
   });
+  if (!safeStyles.length) return sanitized;
+  const styleTags = safeStyles.map((css) => `<style>${css}</style>`).join("");
+  return /<\/head\s*>/i.test(sanitized)
+    ? sanitized.replace(/<\/head\s*>/i, `${styleTags}</head>`)
+    : `${styleTags}${sanitized}`;
 }

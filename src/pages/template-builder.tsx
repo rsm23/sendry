@@ -103,6 +103,7 @@ export default function TemplateBuilderPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<"elements" | "layers" | "settings" | null>(null);
+  const [draggedType, setDraggedType] = useState<EmailBlockType | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedSignature, setSavedSignature] = useState("");
   const loadedId = useRef<string | null>(null);
@@ -240,9 +241,9 @@ export default function TemplateBuilderPage() {
       </header>
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-2 py-2 lg:hidden"><DeviceToggle value={device} onChange={setDevice} /><div className="flex items-center gap-1"><Button variant="ghost" size="icon-sm" aria-label="Undo" disabled={!history.past.length} onClick={() => dispatch({ type: "undo" })}><Undo2 /></Button><Button variant="ghost" size="sm" onClick={() => setPreviewOpen(true)}><Eye data-icon="inline-start" />Preview</Button></div></div>
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[15.5rem_minmax(20rem,1fr)_18rem] xl:grid-cols-[17rem_minmax(24rem,1fr)_20rem]">
-        <aside className="hidden min-h-0 border-e lg:flex"><ElementLibrary onAdd={(type) => addBlock(type)} /></aside>
+        <aside className="hidden min-h-0 border-e lg:flex"><ElementLibrary onAdd={(type) => addBlock(type)} onDragStateChange={setDraggedType} /></aside>
         <main className="relative flex min-h-0 min-w-0 flex-col">
-          <EmailCanvas document={document} selectedId={selectedId} device={device} zoom={zoom} onSelect={setSelectedId} onAdd={addBlock} onMove={moveBlock} onDuplicate={duplicateBlock} onDelete={deleteBlock} />
+          <EmailCanvas document={document} selectedId={selectedId} device={device} zoom={zoom} draggedType={draggedType} onSelect={setSelectedId} onAdd={addBlock} onMove={moveBlock} onDuplicate={duplicateBlock} onDelete={deleteBlock} />
           <div className="hidden h-10 shrink-0 items-center justify-between border-t bg-card px-3 text-xs text-muted-foreground sm:flex"><span>{selectedLabel ? `${t("Selected")}: ${t(selectedLabel)}` : "No element selected"}</span><span>{t("Canvas width")}: {Math.min(document.settings.width, device === "desktop" ? 640 : device === "tablet" ? 520 : 320)}px</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon-xs" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(50, value - 10))}><Minus /></Button><span className="w-10 text-center tabular-nums">{zoom}%</span><Button variant="ghost" size="icon-xs" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(140, value + 10))}><Plus /></Button></div></div>
         </main>
         <aside className="hidden min-h-0 border-s bg-card lg:flex"><BlockInspector idPrefix="desktop" block={selectedBlock} document={document} onChangeBlock={updateBlock} onChangeDocument={updateDocument} /></aside>
@@ -255,7 +256,7 @@ export default function TemplateBuilderPage() {
       <Sheet open={mobilePanel !== null} onOpenChange={(open) => !open && setMobilePanel(null)}>
         <SheetContent side="bottom" className="max-h-[72svh] gap-0 rounded-t-xl">
           <SheetHeader className="border-b"><SheetTitle>{mobilePanel === "elements" ? "Elements" : mobilePanel === "layers" ? "Layers" : "Settings"}</SheetTitle><SheetDescription>{mobilePanel === "elements" ? "Choose or drag content into your email." : mobilePanel === "layers" ? "Select and reorder the email structure." : "Edit the selected element and email settings."}</SheetDescription></SheetHeader>
-          {mobilePanel === "elements" ? <div className="flex min-h-0 flex-1"><ElementLibrary compact onAdd={(type) => addBlock(type)} /></div> : null}
+          {mobilePanel === "elements" ? <div className="flex min-h-0 flex-1"><ElementLibrary compact onAdd={(type) => addBlock(type)} onDragStateChange={setDraggedType} /></div> : null}
           {mobilePanel === "layers" ? <div className="min-h-0 flex-1 overflow-y-auto"><LayerList document={document} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setMobilePanel(null); }} onMove={moveBlock} onDelete={deleteBlock} /></div> : null}
           {mobilePanel === "settings" ? <div className="flex min-h-0 flex-1"><BlockInspector idPrefix="mobile" block={selectedBlock} document={document} onChangeBlock={updateBlock} onChangeDocument={updateDocument} /></div> : null}
         </SheetContent>

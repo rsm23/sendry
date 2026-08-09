@@ -19,6 +19,12 @@ export type EmailBlockType =
   | "coupon"
   | "countdown"
   | "survey"
+  | "feature"
+  | "stats"
+  | "alert"
+  | "event"
+  | "pricing"
+  | "signature"
   | "html"
   | "footer";
 
@@ -114,6 +120,12 @@ export const EMAIL_BLOCK_DEFINITIONS: Array<{
   { type: "coupon", label: "Coupon", category: "Commerce", description: "A promotional offer and code." },
   { type: "countdown", label: "Countdown", category: "Interactive", description: "A deadline-oriented countdown display." },
   { type: "survey", label: "Survey", category: "Interactive", description: "A one-click feedback question." },
+  { type: "feature", label: "Feature", category: "Content", description: "A focused product feature with a link." },
+  { type: "stats", label: "Statistics", category: "Content", description: "Two compact performance metrics." },
+  { type: "alert", label: "Announcement", category: "Content", description: "A highlighted notice or important update." },
+  { type: "event", label: "Event", category: "Interactive", description: "Event details with date, location, and registration." },
+  { type: "pricing", label: "Pricing", category: "Commerce", description: "A plan, price, benefits, and purchase action." },
+  { type: "signature", label: "Signature", category: "Content", description: "A personal sender sign-off with role and company." },
   { type: "html", label: "HTML", category: "Other", description: "Custom trusted email HTML." },
   { type: "footer", label: "Footer", category: "Other", description: "Company details and subscription links." },
 ];
@@ -177,6 +189,18 @@ export function createEmailBlock(type: EmailBlockType): EmailBlock {
       return { ...shared, content: { heading: "Offer ends soon", days: "02", hours: "14", minutes: "36" }, style: baseStyle({ align: "center", backgroundColor: "#111827", textColor: "#ffffff", borderRadius: 8 }) };
     case "survey":
       return { ...shared, content: { question: "How useful was this update?", lowLabel: "Not useful", highLabel: "Very useful", baseUrl: "https://example.test/feedback" }, style: baseStyle({ align: "center", backgroundColor: "#f5f7fb", borderRadius: 8 }) };
+    case "feature":
+      return { ...shared, content: { eyebrow: "NEW", heading: "A faster way to work", text: "Explain one valuable capability and the outcome it creates for your audience.", linkLabel: "Explore the feature", url: "https://example.test/feature" }, style: baseStyle({ backgroundColor: "#f5f7fb", borderRadius: 8 }) };
+    case "stats":
+      return { ...shared, content: { firstValue: "42%", firstLabel: "Faster workflows", secondValue: "3.2×", secondLabel: "More engagement" }, style: baseStyle({ align: "center", backgroundColor: "#f7f9fc", borderRadius: 8 }) };
+    case "alert":
+      return { ...shared, content: { heading: "Important update", text: "Share a time-sensitive change without overwhelming the rest of the message." }, style: baseStyle({ backgroundColor: "#fff8e6", accentColor: "#9a6700", borderColor: "#f4c95d", borderRadius: 8 }) };
+    case "event":
+      return { ...shared, content: { heading: "Join our next live session", date: "Thursday, 27 August · 14:00", location: "Online", text: "See the new workflow in action and ask the product team your questions.", buttonLabel: "Reserve a seat", url: "https://example.test/event" }, style: baseStyle({ backgroundColor: "#edf4ff", borderRadius: 8 }) };
+    case "pricing":
+      return { ...shared, content: { plan: "Business", price: "$79 / month", description: "Advanced collaboration, reporting, and priority support for growing teams.", buttonLabel: "Choose Business", url: "https://example.test/business" }, style: baseStyle({ align: "center", backgroundColor: "#111827", textColor: "#ffffff", borderRadius: 8 }) };
+    case "signature":
+      return { ...shared, content: { image: "", name: "Sofia Martin", title: "Head of Product", company: "Atlas Labs", closing: "Thanks for reading," }, style: baseStyle({ paddingTop: 24, paddingBottom: 24 }) };
     case "html":
       return { ...shared, content: { html: "<p style=\"margin:0\">Add trusted custom email HTML here.</p>" }, style: baseStyle() };
     case "footer":
@@ -215,7 +239,9 @@ export function emailDocumentFromTemplate(editorData: unknown, html: string): Em
   if (html.trim()) {
     const document = createDefaultEmailDocument();
     document.blocks = [createEmailBlock("html")];
-    document.blocks[0].content.html = html;
+    const styles = [...html.matchAll(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi)].map((match) => match[0]).join("");
+    const body = html.match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i)?.[1] ?? html;
+    document.blocks[0].content.html = `${styles}${body}`;
     return document;
   }
   return createDefaultEmailDocument();
@@ -299,6 +325,26 @@ export function renderEmailBlock(block: EmailBlock, withPreviewVariables = false
     case "survey":
       inner = `<div style="background:${s.backgroundColor};border-radius:${radius};padding:28px;text-align:${a}"><h3 style="margin:0 0 18px">${text(c.question)}</h3><a href="${escapeHtml(safeUrl(`${c.baseUrl}?score=1`))}" style="display:inline-block;margin:4px;padding:10px 14px;border:1px solid ${s.borderColor};color:${s.textColor};text-decoration:none;border-radius:4px">${escapeHtml(c.lowLabel)}</a><a href="${escapeHtml(safeUrl(`${c.baseUrl}?score=5`))}" style="display:inline-block;margin:4px;padding:10px 14px;background:${s.accentColor};color:#ffffff;text-decoration:none;border-radius:4px">${escapeHtml(c.highLabel)}</a></div>`;
       break;
+    case "feature":
+      inner = `<div style="background:${s.backgroundColor};border-radius:${radius};padding:28px;text-align:${a}"><strong style="display:block;margin:0 0 10px;color:${s.accentColor};font-size:11px;letter-spacing:.14em">${text(c.eyebrow)}</strong><h2 style="margin:0 0 10px;color:${s.textColor};font-size:24px">${text(c.heading)}</h2><p style="margin:0 0 16px;color:#667085;line-height:1.6">${text(c.text)}</p>${link(`${c.linkLabel} →`, c.url, s.accentColor)}</div>`;
+      break;
+    case "stats":
+      inner = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${s.backgroundColor};border-radius:${radius}"><tr><td width="50%" align="center" style="padding:24px 16px"><strong style="display:block;color:${s.accentColor};font-size:30px;line-height:1.1">${text(c.firstValue)}</strong><span style="display:block;margin-top:7px;color:#667085;font-size:13px">${text(c.firstLabel)}</span></td><td width="50%" align="center" style="padding:24px 16px;border-left:1px solid ${s.borderColor}"><strong style="display:block;color:${s.accentColor};font-size:30px;line-height:1.1">${text(c.secondValue)}</strong><span style="display:block;margin-top:7px;color:#667085;font-size:13px">${text(c.secondLabel)}</span></td></tr></table>`;
+      break;
+    case "alert":
+      inner = `<div style="background:${s.backgroundColor};border:1px solid ${s.borderColor};border-left:4px solid ${s.accentColor};border-radius:${radius};padding:20px 22px;text-align:${a}"><strong style="display:block;margin:0 0 6px;color:${s.textColor};font-size:16px">${text(c.heading)}</strong><p style="margin:0;color:#667085;line-height:1.55">${text(c.text)}</p></div>`;
+      break;
+    case "event":
+      inner = `<div style="background:${s.backgroundColor};border-radius:${radius};padding:28px;text-align:${a}"><h2 style="margin:0 0 10px;color:${s.textColor};font-size:24px">${text(c.heading)}</h2><p style="margin:0 0 5px;color:${s.accentColor};font-weight:700">${text(c.date)}</p><p style="margin:0 0 14px;color:#667085">${text(c.location)}</p><p style="margin:0 0 20px;color:#475467;line-height:1.6">${text(c.text)}</p><a href="${escapeHtml(safeUrl(c.url))}" style="display:inline-block;background:${s.accentColor};color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:6px">${escapeHtml(c.buttonLabel)}</a></div>`;
+      break;
+    case "pricing":
+      inner = `<div style="background:${s.backgroundColor};border-radius:${radius};padding:32px;text-align:${a};color:${s.textColor}"><strong style="display:block;font-size:14px;letter-spacing:.08em">${text(c.plan)}</strong><span style="display:block;margin:10px 0;font-size:32px;font-weight:700">${text(c.price)}</span><p style="margin:0 auto 22px;max-width:440px;color:#cbd5e1;line-height:1.6">${text(c.description)}</p><a href="${escapeHtml(safeUrl(c.url))}" style="display:inline-block;background:${s.accentColor};color:#ffffff;text-decoration:none;font-weight:600;padding:12px 20px;border-radius:6px">${escapeHtml(c.buttonLabel)}</a></div>`;
+      break;
+    case "signature": {
+      const avatar = c.image ? `<img src="${escapeHtml(safeUrl(c.image))}" alt="" width="56" height="56" style="display:block;width:56px;height:56px;border-radius:28px;object-fit:cover">` : `<div style="width:56px;height:56px;border-radius:28px;background:#edf4ff;color:${s.accentColor};font-size:20px;font-weight:700;line-height:56px;text-align:center">${escapeHtml(c.name.slice(0, 1))}</div>`;
+      inner = `<p style="margin:0 0 14px;color:${s.textColor};line-height:1.6">${text(c.closing)}</p><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle" style="padding-right:14px">${avatar}</td><td valign="middle"><strong style="display:block;color:${s.textColor}">${text(c.name)}</strong><span style="display:block;margin-top:3px;color:#667085;font-size:13px">${text(c.title)} · ${text(c.company)}</span></td></tr></table>`;
+      break;
+    }
     case "html":
       inner = c.html;
       break;
@@ -307,7 +353,7 @@ export function renderEmailBlock(block: EmailBlock, withPreviewVariables = false
       break;
   }
   const hidden = block.settings.hideOn.map((device) => `sendry-hide-${device}`).join(" ");
-  const background = s.backgroundColor === "transparent" || ["layout", "columns", "hero", "quote", "video", "products", "coupon", "countdown", "survey"].includes(block.type) ? "transparent" : s.backgroundColor;
+  const background = s.backgroundColor === "transparent" || ["layout", "columns", "hero", "quote", "video", "products", "coupon", "countdown", "survey", "feature", "stats", "alert", "event", "pricing"].includes(block.type) ? "transparent" : s.backgroundColor;
   return `<tr class="sendry-block ${hidden}"><td align="${a}" style="background:${background};padding:${s.paddingTop}px ${block.settings.fullWidth ? 0 : s.paddingInline}px ${s.paddingBottom}px;font-family:${s.fontFamily};font-size:${s.fontSize}px;font-weight:${s.fontWeight};color:${s.textColor}">${inner}</td></tr>`;
 }
 
@@ -336,6 +382,12 @@ export function renderPlainText(document: EmailDocument) {
       case "coupon": return `${c.heading}\n${c.text}\nCode: ${c.code}\n${c.url}`;
       case "countdown": return `${c.heading}: ${c.days} days, ${c.hours} hours, ${c.minutes} minutes`;
       case "survey": return `${c.question}: ${c.baseUrl}`;
+      case "feature": return `${c.eyebrow}\n${c.heading}\n${c.text}\n${c.linkLabel}: ${c.url}`;
+      case "stats": return `${c.firstValue} — ${c.firstLabel}\n${c.secondValue} — ${c.secondLabel}`;
+      case "alert": return `${c.heading}\n${c.text}`;
+      case "event": return `${c.heading}\n${c.date}\n${c.location}\n${c.text}\n${c.buttonLabel}: ${c.url}`;
+      case "pricing": return `${c.plan}\n${c.price}\n${c.description}\n${c.buttonLabel}: ${c.url}`;
+      case "signature": return `${c.closing}\n${c.name}\n${c.title}, ${c.company}`;
       case "footer": return `${c.company}\n${c.address}\n[unsubscribe]\n[preferences]`;
       case "html": return c.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       default: return "";

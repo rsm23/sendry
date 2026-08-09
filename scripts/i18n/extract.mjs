@@ -4,6 +4,7 @@ import ts from 'typescript'
 
 const root = process.cwd()
 const sourceRoots = ['src/pages', 'src/components']
+const sourceFilesOutsideRoots = ['src/lib/ai-providers.ts', 'src/lib/email-builder.ts']
 const attributeNames = new Set(['alt', 'aria-label', 'description', 'detail', 'label', 'placeholder', 'title'])
 const propertyNames = new Set(['actionLabel', 'description', 'detail', 'label', 'placeholder', 'title'])
 const ignoredAncestors = new Set(['className', 'href', 'id', 'src', 'to', 'value'])
@@ -26,6 +27,14 @@ const messages = new Set([
   'A two-product recommendation row.', 'A promotional offer and code.',
   'A deadline-oriented countdown display.', 'A one-click feedback question.',
   'Custom trusted email HTML.', 'Company details and subscription links.',
+  'Content score', 'Insert a content block at the end of the message.', 'Link', 'List', 'Quality analysis',
+  'Unable to discover local models', 'Select a provider', 'Choose a hosted provider or connect a private model server.',
+  'A write-only key is configured for this provider. Leave this field empty to keep it.',
+  'This OpenAI provider uses the server-wide key until a brand key is saved.',
+  'The key is encrypted at rest and is never returned after saving.', 'Checking local server…', 'Refresh models',
+  '{count} installed models available', 'No model list loaded yet', 'Select a provider before enabling AI features.',
+  "Enter this provider's API key before enabling AI features.", 'Select a model before enabling AI features.',
+  'Reveal key', 'Hide key',
   'First name', 'Contact', 'Job title', 'City', 'Current day', 'Date', 'Current month',
   'Current year', 'Unsubscribe URL', 'Subscription', 'Preferences URL', 'element',
   'Choose or drag content into your email.', 'Select and reorder the email structure.',
@@ -52,7 +61,7 @@ function propertyName(node, sourceFile) {
   return node.name && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) ? node.name.text : node.name?.getText(sourceFile)
 }
 
-for (const file of sourceRoots.flatMap((directory) => sourceFiles(path.join(root, directory))).concat(path.join(root, 'src/App.tsx'))) {
+for (const file of sourceRoots.flatMap((directory) => sourceFiles(path.join(root, directory))).concat(sourceFilesOutsideRoots.map((file) => path.join(root, file)), path.join(root, 'src/App.tsx'))) {
   const source = fs.readFileSync(file, 'utf8')
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   function visit(node) {

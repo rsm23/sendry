@@ -231,7 +231,7 @@ describe("Sendry API", () => {
         name: "Builder test",
         subject: "Hello [Name]",
         plain_text: "Hello [Name]",
-        html_text: '<style>@media(max-width:430px){.column{display:block}}</style><table><tr><td style="color:#1458e6">Hello [Name]</td></tr></table><script>alert(1)</script>',
+        html_text: '<style>@media(max-width:430px){.column{display:block}}</style><style>@import "https://evil.test/tracking.css";.column{position:fixed;background:url(javascript:alert(1))}</style><table><tr><td style="color:#1458e6;position:fixed;background-image:url(javascript:alert(1))">Hello [Name]</td></tr></table><script>alert(1)</script>',
         editor_mode: "blocks",
         editor_data: { version: 1, settings: { width: 640 }, blocks: [{ id: "block_test", type: "text" }] },
       })
@@ -240,6 +240,9 @@ describe("Sendry API", () => {
     expect(created.body.html_text).toContain("@media(max-width:430px)");
     expect(created.body.html_text).toContain('style="color:#1458e6"');
     expect(created.body.html_text).not.toContain("<script");
+    expect(created.body.html_text).not.toContain("@import");
+    expect(created.body.html_text).not.toContain("position:fixed");
+    expect(created.body.html_text).not.toContain("javascript:");
 
     const updated = await agent
       .patch(`/api/brands/brd_atlas/templates/${created.body.id}`)
