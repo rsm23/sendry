@@ -1129,5 +1129,9 @@
   "Try again": "Réessayer",
   "Upload a file here or return to another folder.": "Téléversez un fichier ici ou revenez à un autre dossier.",
   "Upload files": "Téléverser des fichiers",
-  "Uploading…": "Téléversement…"
+  "Uploading…": "Téléversement…",
+  "Keep editing": "Continuer la modification",
+  "Leave without saving": "Quitter sans enregistrer",
+  "Unsaved changes": "Modifications non enregistrées",
+  "You have unsaved changes. If you leave now, they will be lost.": "Vous avez des modifications non enregistrées. Si vous quittez maintenant, elles seront perdues."
 }

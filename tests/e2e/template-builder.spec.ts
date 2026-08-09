@@ -52,3 +52,46 @@ test("builds, saves, and previews a responsive variable-aware email", async ({ p
   await expect(frame).toBeVisible();
   await expect(frame.locator("..")).toHaveAttribute("style", /width: 360px/);
 });
+
+test("asks before in-app navigation with unsaved template changes", async ({ page }) => {
+  const runtimeErrors: string[] = [];
+  page.on("pageerror", (error) => runtimeErrors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") runtimeErrors.push(message.text()); });
+  const builderUrl = page.url();
+  const nameInput = page.getByRole("textbox", { name: "Template name" }).first();
+  const editedName = `${await nameInput.inputValue()} edited`;
+  await nameInput.fill(editedName);
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
+
+  await page.getByRole("button", { name: "Back to templates" }).click();
+  const warning = page.getByRole("dialog", { name: "Unsaved changes" });
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText("If you leave now, they will be lost.");
+  await warning.getByRole("button", { name: "Keep editing" }).click();
+  await expect(warning).toHaveCount(0);
+  await expect(page).toHaveURL(builderUrl);
+  await expect(nameInput).toHaveValue(editedName);
+
+  await nameInput.fill(`${editedName} saved`);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Template saved", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Back to templates" }).click();
+  await expect(page).toHaveURL(/\/templates$/);
+  await expect(warning).toHaveCount(0);
+  expect(runtimeErrors).toEqual([]);
+});
+
+test("asks before closing or refreshing with unsaved template changes", async ({ page }) => {
+  const nameInput = page.getByRole("textbox", { name: "Template name" }).first();
+  const editedName = `${await nameInput.inputValue()} refresh edit`;
+  await nameInput.fill(editedName);
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
+
+  const dialogPromise = page.waitForEvent("dialog");
+  await page.close({ runBeforeUnload: true });
+  const warning = await dialogPromise;
+  expect(warning.type()).toBe("beforeunload");
+  await warning.dismiss();
+  await expect.poll(() => page.isClosed()).toBe(false);
+});

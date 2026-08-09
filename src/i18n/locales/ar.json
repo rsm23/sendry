@@ -1129,5 +1129,9 @@
   "Try again": "حاول مرة أخرى",
   "Upload a file here or return to another folder.": "حمّل ملفًا هنا أو ارجع إلى مجلد آخر.",
   "Upload files": "تحميل الملفات",
-  "Uploading…": "جارٍ التحميل…"
+  "Uploading…": "جارٍ التحميل…",
+  "Keep editing": "متابعة التحرير",
+  "Leave without saving": "المغادرة دون حفظ",
+  "Unsaved changes": "تغييرات غير محفوظة",
+  "You have unsaved changes. If you leave now, they will be lost.": "لديك تغييرات غير محفوظة. إذا غادرت الآن، فستُفقد."
 }

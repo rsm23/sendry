@@ -1129,5 +1129,9 @@
   "Try again": "Intentar de nuevo",
   "Upload a file here or return to another folder.": "Sube un archivo aquí o vuelve a otra carpeta.",
   "Upload files": "Subir archivos",
-  "Uploading…": "Subiendo…"
+  "Uploading…": "Subiendo…",
+  "Keep editing": "Seguir editando",
+  "Leave without saving": "Salir sin guardar",
+  "Unsaved changes": "Cambios sin guardar",
+  "You have unsaved changes. If you leave now, they will be lost.": "Tienes cambios sin guardar. Si sales ahora, se perderán."
 }

@@ -43,6 +43,7 @@ import { useI18n } from "@/i18n/context";
 import { BlockInspector, VariablePicker } from "@/components/email-builder/block-inspector";
 import { EmailCanvas } from "@/components/email-builder/email-canvas";
 import { ElementIcon, ElementLibrary } from "@/components/email-builder/element-library";
+import { UnsavedChangesGuard } from "@/components/unsaved-changes-guard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -105,6 +106,7 @@ export default function TemplateBuilderPage() {
   const [mobilePanel, setMobilePanel] = useState<"elements" | "layers" | "settings" | null>(null);
   const [draggedType, setDraggedType] = useState<EmailBlockType | null>(null);
   const [saving, setSaving] = useState(false);
+  const [leaveConfirmationOpen, setLeaveConfirmationOpen] = useState(false);
   const [savedSignature, setSavedSignature] = useState("");
   const loadedId = useRef<string | null>(null);
   const saveInFlight = useRef(false);
@@ -160,10 +162,10 @@ export default function TemplateBuilderPage() {
   }, [brand?.id, client, document, subject, template, templateName]);
 
   useEffect(() => {
-    if (!dirty || saving) return;
+    if (!dirty || saving || leaveConfirmationOpen) return;
     const timer = window.setTimeout(() => void saveTemplate(false), 1800);
     return () => window.clearTimeout(timer);
-  }, [dirty, saveTemplate, saving]);
+  }, [dirty, leaveConfirmationOpen, saveTemplate, saving]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -175,12 +177,6 @@ export default function TemplateBuilderPage() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [saveTemplate]);
-
-  useEffect(() => {
-    const warn = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
 
   const updateDocument = (next: EmailDocument) => dispatch({ type: "update", document: next });
   const updateBlock = (next: EmailBlock) => updateDocument({ ...document, blocks: document.blocks.map((block) => block.id === next.id ? next : block) });
@@ -225,6 +221,7 @@ export default function TemplateBuilderPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
+      <UnsavedChangesGuard when={dirty} onBlockedChange={setLeaveConfirmationOpen} />
       <header className="flex min-h-14 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
         <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Back to templates" onClick={() => navigate("/templates")} />}><ArrowLeft /></TooltipTrigger><TooltipContent>Back to templates</TooltipContent></Tooltip>
         <Input className="h-8 min-w-0 max-w-44 border-transparent bg-muted/50 font-medium hover:border-input focus-visible:bg-background sm:max-w-56 2xl:max-w-72" value={templateName} onChange={(event) => setTemplateName(event.target.value)} aria-label="Template name" />
