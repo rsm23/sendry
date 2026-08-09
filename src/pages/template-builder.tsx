@@ -106,7 +106,6 @@ export default function TemplateBuilderPage() {
   const [mobilePanel, setMobilePanel] = useState<"elements" | "layers" | "settings" | null>(null);
   const [draggedType, setDraggedType] = useState<EmailBlockType | null>(null);
   const [saving, setSaving] = useState(false);
-  const [leaveConfirmationOpen, setLeaveConfirmationOpen] = useState(false);
   const [savedSignature, setSavedSignature] = useState("");
   const loadedId = useRef<string | null>(null);
   const saveInFlight = useRef(false);
@@ -162,12 +161,6 @@ export default function TemplateBuilderPage() {
   }, [brand?.id, client, document, subject, template, templateName]);
 
   useEffect(() => {
-    if (!dirty || saving || leaveConfirmationOpen) return;
-    const timer = window.setTimeout(() => void saveTemplate(false), 1800);
-    return () => window.clearTimeout(timer);
-  }, [dirty, leaveConfirmationOpen, saveTemplate, saving]);
-
-  useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
       const modifier = event.metaKey || event.ctrlKey;
       if (modifier && event.key.toLowerCase() === "s") { event.preventDefault(); void saveTemplate(true); }
@@ -179,6 +172,10 @@ export default function TemplateBuilderPage() {
   }, [saveTemplate]);
 
   const updateDocument = (next: EmailDocument) => dispatch({ type: "update", document: next });
+  const openBlockSettings = (id: string) => {
+    setSelectedId(id);
+    if (matchMedia("(max-width: 1023px)").matches) setMobilePanel("settings");
+  };
   const updateBlock = (next: EmailBlock) => updateDocument({ ...document, blocks: document.blocks.map((block) => block.id === next.id ? next : block) });
   const addBlock = (type: EmailBlockType, index = document.blocks.length) => {
     const block = createEmailBlock(type);
@@ -221,7 +218,7 @@ export default function TemplateBuilderPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
-      <UnsavedChangesGuard when={dirty} onBlockedChange={setLeaveConfirmationOpen} />
+      <UnsavedChangesGuard when={dirty} />
       <header className="flex min-h-14 shrink-0 items-center gap-2 border-b bg-card px-2 sm:px-3">
         <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Back to templates" onClick={() => navigate("/templates")} />}><ArrowLeft /></TooltipTrigger><TooltipContent>Back to templates</TooltipContent></Tooltip>
         <Input className="h-8 min-w-0 max-w-44 border-transparent bg-muted/50 font-medium hover:border-input focus-visible:bg-background sm:max-w-56 2xl:max-w-72" value={templateName} onChange={(event) => setTemplateName(event.target.value)} aria-label="Template name" />
@@ -240,7 +237,7 @@ export default function TemplateBuilderPage() {
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[15.5rem_minmax(20rem,1fr)_18rem] xl:grid-cols-[17rem_minmax(24rem,1fr)_20rem]">
         <aside className="hidden min-h-0 border-e lg:flex"><ElementLibrary onAdd={(type) => addBlock(type)} onDragStateChange={setDraggedType} /></aside>
         <main className="relative flex min-h-0 min-w-0 flex-col">
-          <EmailCanvas document={document} selectedId={selectedId} device={device} zoom={zoom} draggedType={draggedType} onSelect={setSelectedId} onAdd={addBlock} onMove={moveBlock} onDuplicate={duplicateBlock} onDelete={deleteBlock} />
+          <EmailCanvas document={document} selectedId={selectedId} device={device} zoom={zoom} draggedType={draggedType} onSelect={setSelectedId} onOpenSettings={openBlockSettings} onAdd={addBlock} onMove={moveBlock} onDuplicate={duplicateBlock} onDelete={deleteBlock} />
           <div className="hidden h-10 shrink-0 items-center justify-between border-t bg-card px-3 text-xs text-muted-foreground sm:flex"><span>{selectedLabel ? `${t("Selected")}: ${t(selectedLabel)}` : "No element selected"}</span><span>{t("Canvas width")}: {Math.min(document.settings.width, device === "desktop" ? 640 : device === "tablet" ? 520 : 320)}px</span><div className="flex items-center gap-1"><Button variant="ghost" size="icon-xs" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(50, value - 10))}><Minus /></Button><span className="w-10 text-center tabular-nums">{zoom}%</span><Button variant="ghost" size="icon-xs" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(140, value + 10))}><Plus /></Button></div></div>
         </main>
         <aside className="hidden min-h-0 border-s bg-card lg:flex"><BlockInspector idPrefix="desktop" block={selectedBlock} document={document} onChangeBlock={updateBlock} onChangeDocument={updateDocument} /></aside>

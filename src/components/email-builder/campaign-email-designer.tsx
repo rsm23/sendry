@@ -49,6 +49,7 @@ const canvasWidths: Record<EmailDevice, string> = { desktop: "max-w-2xl", tablet
 export function CampaignEmailDesigner({ device, document, fromEmail, fromName, html, mode, previewOpen, subject, analysis, onAnalyze, onChangeDevice, onChangeDocument, onChangeHtml, onChangeMode, onImprove, onPreviewOpenChange }: CampaignEmailDesignerProps) {
   const [selectedId, setSelectedId] = useState<string | null>(document.blocks[0]?.id ?? null);
   const [draggedType, setDraggedType] = useState<EmailBlockType | null>(null);
+  const [sidePanel, setSidePanel] = useState<"elements" | "layers" | "settings" | "tools">("elements");
   const selectedBlock = document.blocks.find((block) => block.id === selectedId) ?? null;
 
   useEffect(() => {
@@ -107,7 +108,7 @@ export function CampaignEmailDesigner({ device, document, fromEmail, fromName, h
           <DeviceToggle value={device} onChange={onChangeDevice} />
         </div>
         {mode === "blocks" ? (
-          <EmailCanvas document={document} selectedId={selectedId} device={device} zoom={100} draggedType={draggedType} onSelect={setSelectedId} onAdd={addBlock} onMove={moveBlock} onDuplicate={duplicateBlock} onDelete={deleteBlock} />
+          <EmailCanvas document={document} selectedId={selectedId} device={device} zoom={100} draggedType={draggedType} onSelect={setSelectedId} onOpenSettings={(id) => { setSelectedId(id); setSidePanel("settings"); }} onAdd={addBlock} onMove={moveBlock} onDuplicate={duplicateBlock} onDelete={deleteBlock} />
         ) : (
           <div className="flex min-h-0 flex-1 justify-center overflow-auto p-4 sm:p-6">
             <div className={cn("w-full overflow-hidden border bg-white shadow-sm transition-[max-width]", canvasWidths[device])}>
@@ -122,7 +123,7 @@ export function CampaignEmailDesigner({ device, document, fromEmail, fromName, h
         )}
       </section>
       <aside className="min-h-0 min-w-0 max-w-full overflow-hidden border-s bg-card">
-        <Tabs defaultValue="elements" className="flex min-h-[44rem] w-full min-w-0 max-w-full flex-col overflow-hidden">
+        <Tabs value={sidePanel} onValueChange={(value) => setSidePanel(value as typeof sidePanel)} className="flex min-h-[44rem] w-full min-w-0 max-w-full flex-col overflow-hidden">
           <TabsList variant="line" className="mx-3 mt-2 max-w-[calc(100%-1.5rem)]">
             <TabsTrigger value="elements" className="flex-1">Elements</TabsTrigger>
             <TabsTrigger value="layers" className="flex-1">Layers</TabsTrigger>

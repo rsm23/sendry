@@ -4,7 +4,7 @@ import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
-export function UnsavedChangesGuard({ when, onBlockedChange }: { when: boolean; onBlockedChange?: (blocked: boolean) => void }) {
+export function UnsavedChangesGuard({ when }: { when: boolean }) {
   const blocker = useBlocker(({ currentLocation, nextLocation }) => when && (
     currentLocation.pathname !== nextLocation.pathname
     || currentLocation.search !== nextLocation.search
@@ -20,10 +20,6 @@ export function UnsavedChangesGuard({ when, onBlockedChange }: { when: boolean; 
   useEffect(() => {
     if (!when && blocker.state === 'blocked') blocker.proceed()
   }, [blocker, when])
-
-  useEffect(() => {
-    onBlockedChange?.(blocker.state === 'blocked')
-  }, [blocker.state, onBlockedChange])
 
   const stay = () => {
     if (blocker.state === 'blocked') blocker.reset()

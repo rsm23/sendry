@@ -29,6 +29,10 @@ test("edits, reorders, and previews a responsive campaign without crashing", asy
     await expect(canvas).toHaveAttribute("data-device", device.toLowerCase());
   }
 
+  await page.getByRole("button", { name: "Hero element", exact: true }).dblclick();
+  await expect(page.locator('[role="tab"][aria-selected="true"]').filter({ hasText: /^Settings$/ })).toHaveCount(1);
+  await page.getByRole("tab", { name: "Elements", exact: true }).click();
+
   const composerUrl = page.url();
   await page.getByRole("button", { name: /^Add attachment/ }).click();
   const attachmentDialog = page.getByRole("dialog", { name: "Campaign attachments" });
@@ -49,7 +53,8 @@ test("edits, reorders, and previews a responsive campaign without crashing", asy
   expect(uploadedAttachment).toBeDefined();
   await page.request.delete(`/api/brands/brd_atlas/files/${uploadedAttachment!.id}`);
 
-  const originalCount = await page.getByRole("button", { name: / element$/ }).count();
+  const canvasElements = canvas.locator(":scope > div > [role='button']");
+  const originalCount = await canvasElements.count();
   const announcementSource = page.getByRole("button", { name: "Add Announcement" });
   const announcementContainment = await announcementSource.evaluate((element) => {
     const card = element.getBoundingClientRect();
@@ -81,7 +86,7 @@ test("edits, reorders, and previews a responsive campaign without crashing", asy
     await dataTransfer.dispose();
     await expect(dragPreview).toHaveCount(0);
   }
-  await expect(page.getByRole("button", { name: / element$/ })).toHaveCount(originalCount + 2);
+  await expect(canvasElements).toHaveCount(originalCount + 2);
 
   await page.getByRole("tab", { name: "Layers", exact: true }).click();
   const layers = page.getByLabel("Email layers");

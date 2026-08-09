@@ -37,11 +37,13 @@ test("builds, saves, and previews a responsive variable-aware email", async ({ p
   await page.getByRole("button", { name: "Insert variable" }).last().click();
   await page.getByRole("button", { name: /First name.*\[Name\]/ }).click();
   await expect(heading).toHaveValue("Hello [Name]");
-  if (mobile) await page.keyboard.press("Escape");
+  if (mobile) {
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "Settings", exact: true }).getByRole("button", { name: "Close" }).click();
+  }
   await expect(page.getByText("Hello Sofia", { exact: true })).toBeVisible();
 
-  if (mobile) await page.waitForTimeout(2_100);
-  else await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.reload();
   await expect(page.getByText("Hello Sofia", { exact: true })).toBeVisible();
 
@@ -51,6 +53,22 @@ test("builds, saves, and previews a responsive variable-aware email", async ({ p
   const frame = page.getByTitle("mobile template preview");
   await expect(frame).toBeVisible();
   await expect(frame.locator("..")).toHaveAttribute("style", /width: 360px/);
+});
+
+test("opens the selected element settings on double click", async ({ page }) => {
+  const mobile = (page.viewportSize()?.width ?? 1024) < 768;
+  const hero = page.locator('[aria-label="Hero element"]');
+  await hero.dblclick();
+  await expect(hero).toHaveAttribute("aria-pressed", "true");
+
+  if (mobile) {
+    const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+    await expect(settings).toBeVisible();
+    await expect(settings.getByText("Hero", { exact: true }).first()).toBeVisible();
+  } else {
+    const inspector = page.locator("aside").last();
+    await expect(inspector.getByText("Hero", { exact: true }).first()).toBeVisible();
+  }
 });
 
 test("asks before in-app navigation with unsaved template changes", async ({ page }) => {
@@ -83,9 +101,17 @@ test("asks before in-app navigation with unsaved template changes", async ({ pag
 });
 
 test("asks before closing or refreshing with unsaved template changes", async ({ page }) => {
-  const nameInput = page.getByRole("textbox", { name: "Template name" }).first();
-  const editedName = `${await nameInput.inputValue()} refresh edit`;
-  await nameInput.fill(editedName);
+  const mobile = (page.viewportSize()?.width ?? 1024) < 768;
+  if (mobile) {
+    await page.getByRole("button", { name: "Elements", exact: true }).click();
+    const elementSheet = page.getByRole("dialog").last();
+    await elementSheet.getByRole("button", { name: "Add Heading" }).click();
+  } else {
+    await page.getByRole("button", { name: "Add Heading" }).dragTo(page.locator(".group\\/drop").nth(2));
+  }
+  await expect(page.getByRole("button", { name: "Heading element" }).last()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
+  await page.waitForTimeout(2_100);
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
 
   const dialogPromise = page.waitForEvent("dialog");

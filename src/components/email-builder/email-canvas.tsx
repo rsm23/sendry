@@ -7,13 +7,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 const deviceWidths: Record<EmailDevice, number> = { desktop: 640, tablet: 520, mobile: 320 };
 
-export function EmailCanvas({ document, selectedId, device, zoom, draggedType = null, onSelect, onAdd, onMove, onDuplicate, onDelete }: {
+export function EmailCanvas({ document, selectedId, device, zoom, draggedType = null, onSelect, onOpenSettings, onAdd, onMove, onDuplicate, onDelete }: {
   document: EmailDocument;
   selectedId: string | null;
   device: EmailDevice;
   zoom: number;
   draggedType?: EmailBlockType | null;
   onSelect: (id: string | null) => void;
+  onOpenSettings: (id: string) => void;
   onAdd: (type: EmailBlockType, index: number) => void;
   onMove: (id: string, index: number) => void;
   onDuplicate: (id: string) => void;
@@ -78,8 +79,13 @@ export function EmailCanvas({ document, selectedId, device, zoom, draggedType = 
                 }}
                 onDrop={(event) => handleDrop(event, previewIndex ?? index)}
                 onClick={(event) => { event.stopPropagation(); onSelect(block.id); }}
+                onDoubleClick={(event) => { event.stopPropagation(); onOpenSettings(block.id); }}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(block.id); }
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    if (selected && event.key === "Enter") onOpenSettings(block.id);
+                    else onSelect(block.id);
+                  }
                   if ((event.key === "Delete" || event.key === "Backspace") && selected) onDelete(block.id);
                 }}
               >
