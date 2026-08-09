@@ -38,6 +38,26 @@ test("navigates the primary product areas", async ({ page }) => {
   }
 });
 
+test("opens the app-shell dropdown menus without crashing", async ({ page }) => {
+  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  await expect(page.getByText("Notifications", { exact: true })).toBeVisible();
+  await expect(page.getByText("View delivery activity", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  if ((page.viewportSize()?.width ?? 1024) < 768) {
+    await page.getByRole("button", { name: "Toggle Sidebar" }).first().click();
+  }
+
+  await page.getByRole("button", { name: "Atlas", exact: true }).click();
+  await expect(page.getByText("Brands", { exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Atlas", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: /QA Admin/ }).click();
+  await expect(page.getByText("qa@sendry.local", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("Account settings", { exact: true })).toBeVisible();
+});
+
 test("creates a channel-native WhatsApp campaign", async ({ page }) => {
   await page.goto("/campaigns/new/whatsapp");
   await expect(page.getByRole("heading", { name: "Create WhatsApp campaign" })).toBeVisible();

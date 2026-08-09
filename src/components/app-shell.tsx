@@ -12,7 +12,7 @@ import {
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger,
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { get } from '@/lib/api'
@@ -58,8 +58,10 @@ export function AppShell() {
               <ChevronDown className="size-4 group-data-[collapsible=icon]:hidden"/>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Brands</DropdownMenuLabel>
-              {brands.map((item) => <DropdownMenuItem key={item.id} onClick={() => selectBrand(item.id)}>{item.name}</DropdownMenuItem>)}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Brands</DropdownMenuLabel>
+                {brands.map((item) => <DropdownMenuItem key={item.id} onClick={() => selectBrand(item.id)}>{item.name}</DropdownMenuItem>)}
+              </DropdownMenuGroup>
               {can('settings') && <><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/settings')}><Plus/> Add or manage brands</DropdownMenuItem></>}
             </DropdownMenuContent>
           </DropdownMenu>
@@ -87,10 +89,12 @@ export function AppShell() {
                   <ChevronDown className="size-4 group-data-[collapsible=icon]:hidden"/>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="right" align="end" className="w-56">
-                  <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
-                  <DropdownMenuSeparator/>
-                  {can('settings') && <DropdownMenuItem onClick={() => navigate('/settings')}><Settings/> Account settings</DropdownMenuItem>}
-                  <DropdownMenuItem onClick={() => void logout()}><LogOut/> Sign out</DropdownMenuItem>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
+                    <DropdownMenuSeparator/>
+                    {can('settings') && <DropdownMenuItem onClick={() => navigate('/settings')}><Settings/> Account settings</DropdownMenuItem>}
+                    <DropdownMenuItem onClick={() => void logout()}><LogOut/> Sign out</DropdownMenuItem>
+                  </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>
@@ -103,7 +107,7 @@ export function AppShell() {
           <SidebarTrigger/>
           <div className="hidden items-center gap-2 text-sm sm:flex"><span className="text-muted-foreground">{brand?.name}</span><span className="text-muted-foreground/40">/</span><span className="font-medium">{active?.label ?? 'Workspace'}</span></div>
           <button onClick={() => setSearchOpen(true)} className="mx-auto flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 rounded-lg border bg-card px-3 text-left text-sm text-muted-foreground shadow-none outline-none hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring"><Search className="size-4 shrink-0"/><span className="truncate">Search conversations, contacts, campaigns…</span><kbd className="ml-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[0.65rem] sm:inline">⌘ K</kbd></button>
-          <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ml-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{alert.title}</strong><span className="block text-xs text-muted-foreground">{alert.detail}</span></span></DropdownMenuItem>)}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}<DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ml-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{alert.title}</strong><span className="block text-xs text-muted-foreground">{alert.detail}</span></span></DropdownMenuItem>)}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
           {can('campaigns') && <Button size="sm" onClick={() => navigate('/campaigns/new')} className="hidden sm:inline-flex"><Plus/> Create campaign</Button>}
         </header>
         <main className="page-gutter min-w-0"><Outlet/></main>
