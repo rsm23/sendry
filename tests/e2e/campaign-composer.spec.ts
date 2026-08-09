@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByText("Email editor", { exact: true })).toBeVisible();
 });
 
-test("edits, reorders, and previews a responsive campaign without crashing", async ({ page }) => {
+test("edits, reorders, and previews a responsive campaign without crashing", async ({ page }, testInfo) => {
   const runtimeErrors: string[] = [];
   page.on("pageerror", (error) => runtimeErrors.push(error.message));
   page.on("console", (message) => {
@@ -28,6 +28,26 @@ test("edits, reorders, and previews a responsive campaign without crashing", asy
     await page.getByRole("button", { name: `${device} preview`, exact: true }).click();
     await expect(canvas).toHaveAttribute("data-device", device.toLowerCase());
   }
+
+  const composerUrl = page.url();
+  await page.getByRole("button", { name: /^Add attachment/ }).click();
+  const attachmentDialog = page.getByRole("dialog", { name: "Campaign attachments" });
+  await expect(attachmentDialog).toBeVisible();
+  await expect(attachmentDialog.getByRole("button", { name: "Open file library" })).toHaveCount(0);
+  await attachmentDialog.getByRole("button", { name: "Open folder attachments" }).click();
+  const attachmentName = `campaign-brief-${testInfo.project.name}-${Date.now()}.pdf`;
+  await attachmentDialog.locator('input[type="file"]').setInputFiles({ name: attachmentName, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\nSendry attachment QA") });
+  await expect(attachmentDialog.getByText(attachmentName, { exact: true })).toBeVisible();
+  await expect(attachmentDialog.getByRole("checkbox", { name: `Select ${attachmentName}` })).toBeChecked();
+  await attachmentDialog.getByRole("button", { name: "Use selected files" }).click();
+  await expect(attachmentDialog).toHaveCount(0);
+  await expect(page).toHaveURL(composerUrl);
+  await expect(page.getByRole("button", { name: /Add attachment \(\d+\)/ })).toBeVisible();
+  const libraryResponse = await page.request.get("/api/brands/brd_atlas/files?parentId=dir_attachments");
+  const libraryFiles = await libraryResponse.json() as Array<{ id: string; name: string }>;
+  const uploadedAttachment = libraryFiles.find((file) => file.name === attachmentName);
+  expect(uploadedAttachment).toBeDefined();
+  await page.request.delete(`/api/brands/brd_atlas/files/${uploadedAttachment!.id}`);
 
   const originalCount = await page.getByRole("button", { name: / element$/ }).count();
   const announcementSource = page.getByRole("button", { name: "Add Announcement" });
