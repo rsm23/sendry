@@ -371,7 +371,7 @@ export default function AutomationsPage() {
                   </p>
                   <p className="text-xs text-muted-foreground">emails sent</p>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <StatusBadge status={item.enabled ? "active" : "stopped"} />
                   <p className="mt-2 text-xs text-muted-foreground">
                     {item.step_count} steps

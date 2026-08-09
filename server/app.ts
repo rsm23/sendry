@@ -4222,7 +4222,14 @@ export function createApp(options: CreateOptions = {}) {
     },
   );
 
-  app.patch("/api/settings/profile", requireAuth, (request, response) => {
+  app.patch("/api/settings/profile", requireAuth, body(z.object({
+    name: z.string().min(1).optional(),
+    email: z.email().optional(),
+    language: z.enum(["en", "fr", "es", "ar"]).optional(),
+    timezone: z.string().min(1).optional(),
+    theme: z.enum(["system", "light", "dark"]).optional(),
+    sidebar_shortcut: z.boolean().optional(),
+  })), (request, response) => {
     if (!request.authUser)
       return response.status(403).json({ error: "A user session is required" });
     updateColumns(db, "users", request.authUser.id, request.body, [
@@ -4252,7 +4259,7 @@ export function createApp(options: CreateOptions = {}) {
         company: z.string().min(1).optional(),
         default_timezone: z.string().min(1).optional(),
         default_language: z
-          .enum(["en", "fr", "de", "es", "it", "nl"])
+          .enum(["en", "fr", "de", "es", "it", "nl", "ar"])
           .optional(),
         rows_per_page: z.number().int().min(10).max(100).optional(),
         strict_delete: z.boolean().optional(),

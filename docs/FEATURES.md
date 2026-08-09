@@ -8,6 +8,8 @@
 - Owner, administrator, and client accounts
 - Per-brand permissions for campaigns, templates, audiences, automations, reports, files, rules, and settings
 - Profile language, time zone, theme, name, and email preferences
+- English, French, Spanish, and Arabic administration with locale-aware formatting and RTL layout
+- Persisted system, light, and dark appearance across signed-out and authenticated surfaces
 
 ## Authentication and account security
 

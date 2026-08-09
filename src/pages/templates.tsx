@@ -218,7 +218,7 @@ export default function TemplatesPage() {
         {query.data?.map((template) => (
           <Card key={template.id} className="overflow-hidden">
             <button
-              className="relative block h-48 w-full overflow-hidden border-b bg-white text-left"
+              className="relative block h-48 w-full overflow-hidden border-b bg-white text-start"
               onClick={() => setPreview(template)}
             >
               <iframe

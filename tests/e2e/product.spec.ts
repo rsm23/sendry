@@ -58,6 +58,38 @@ test("opens the app-shell dropdown menus without crashing", async ({ page }) => 
   await expect(page.getByText("Account settings", { exact: true })).toBeVisible();
 });
 
+test("opens search with macOS and Windows keyboard shortcuts", async ({ page }) => {
+  const searchInput = page.getByPlaceholder("Search Sendry…");
+  const searchButton = page.getByRole("button", { name: /Search conversations/ });
+  await expect(searchButton).toBeVisible();
+  const expectedShortcut = await page.evaluate(() =>
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? "⌘ K" : "Ctrl K",
+  );
+  await expect(searchButton.locator("kbd")).toHaveText(expectedShortcut);
+
+  await page.keyboard.press("Meta+K");
+  await expect(searchInput).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(searchInput).toBeHidden();
+
+  await page.keyboard.press("Control+K");
+  await expect(searchInput).toBeVisible();
+});
+
+test("shows Ctrl K in the shortcut hint on Windows", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "platform", {
+      configurable: true,
+      get: () => "Win32",
+    });
+  });
+  await page.reload();
+
+  const searchButton = page.getByRole("button", { name: /Search conversations/ });
+  await expect(searchButton).toBeVisible();
+  await expect(searchButton.locator("kbd")).toHaveText("Ctrl K");
+});
+
 test("creates a channel-native WhatsApp campaign", async ({ page }) => {
   await page.goto("/campaigns/new/whatsapp");
   await expect(page.getByRole("heading", { name: "Create WhatsApp campaign" })).toBeVisible();

@@ -19,6 +19,7 @@ Sendry is a self-hosted multi-channel marketing and conversations platform. It c
 - AI email generation, subject suggestions, copy improvement, content scoring, and report analysis
 - Per-brand message allowances, optional campaign fees, and PayPal checkout
 - Password, authenticator, recovery-code, and passkey authentication
+- Complete system, light, and dark themes with English, French, Spanish, and Arabic RTL administration
 - Bearer-token API, RSS feeds, provider feedback events, audit records, and background job visibility
 - Email, SMS, WhatsApp, and Push campaigns with mixed-channel automation steps
 - Twilio and Vonage SMS; Twilio, Meta, and Vonage WhatsApp; Web Push and FCM

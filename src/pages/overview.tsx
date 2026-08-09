@@ -111,7 +111,7 @@ export default function OverviewPage() {
         }
       />
       <div className="mb-5 grid overflow-hidden rounded-lg border bg-card md:grid-cols-4">
-        <div className="flex items-center gap-3 border-b p-4 md:border-b-0 md:border-r">
+        <div className="flex items-center gap-3 border-b p-4 md:border-b-0 md:border-e">
           <span className="grid size-10 place-items-center rounded-full bg-emerald-100 text-emerald-700">
             <Check className="size-5" />
           </span>
@@ -122,7 +122,7 @@ export default function OverviewPage() {
             </p>
           </div>
         </div>
-        <div className="border-b p-4 md:border-b-0 md:border-r">
+        <div className="border-b p-4 md:border-b-0 md:border-e">
           <p className="metric-number text-xl">
             {data.provider.provider_config.dailyRemaining == null
               ? "—"
@@ -130,7 +130,7 @@ export default function OverviewPage() {
           </p>
           <p className="text-xs text-muted-foreground">remaining today</p>
         </div>
-        <div className="border-b p-4 md:border-b-0 md:border-r">
+        <div className="border-b p-4 md:border-b-0 md:border-e">
           <p className="metric-number text-xl">
             {data.provider.provider_config.sendRate == null
               ? "—"
@@ -294,7 +294,7 @@ export default function OverviewPage() {
                           : "/reports",
                     )
                   }
-                  className="flex w-full gap-3 border-b p-4 text-left last:border-b-0 hover:bg-muted/60"
+                  className="flex w-full gap-3 border-b p-4 text-start last:border-b-0 hover:bg-muted/60"
                 >
                   <span className="grid size-8 shrink-0 place-items-center rounded-full bg-orange-100 text-orange-700">
                     <AlertTriangle className="size-4" />

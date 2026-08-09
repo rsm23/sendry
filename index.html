@@ -1,14 +1,30 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" dir="ltr" data-locale="en" data-theme="system">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#f9f8f4" />
     <meta name="description" content="Sendry email campaigns, audiences, automations, and reporting." />
     <title>Sendry · Email operations</title>
   </head>
   <body>
+    <script>
+      (() => {
+        const locale = (localStorage.getItem('sendry_locale') || navigator.language || 'en').split(/[-_]/)[0]
+        const supported = ['en', 'fr', 'es', 'ar']
+        const resolvedLocale = supported.includes(locale) ? locale : 'en'
+        const theme = localStorage.getItem('sendry_theme') || 'system'
+        const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        const root = document.documentElement
+        root.lang = resolvedLocale
+        root.dir = resolvedLocale === 'ar' ? 'rtl' : 'ltr'
+        root.dataset.locale = resolvedLocale
+        root.dataset.theme = theme
+        root.classList.toggle('dark', dark)
+        root.style.colorScheme = dark ? 'dark' : 'light'
+      })()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

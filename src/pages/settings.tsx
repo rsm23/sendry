@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { get, patch, post, remove } from "@/lib/api";
 import { useAuth, type Brand } from "@/lib/auth";
 import { number, relative, shortDate } from "@/lib/format";
+import { localeCodes, locales } from "@/i18n/catalog";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
@@ -609,7 +610,7 @@ export default function SettingsPage() {
                   <SelectField
                     label="Default language"
                     value={workspaceValue.default_language}
-                    options={["en", "fr", "de", "es", "it", "nl"]}
+                    options={localeCodes.map((code) => ({ value: code, label: locales[code].nativeName }))}
                     onChange={(default_language) =>
                       setWorkspaceValue({ ...workspaceValue, default_language })
                     }
@@ -715,7 +716,7 @@ export default function SettingsPage() {
                       key={option.id}
                       value={option.id}
                       aria-label={`Use ${option.name}`}
-                      className="h-auto min-h-20 flex-col items-start justify-start whitespace-normal px-4 py-3 text-left"
+                      className="h-auto min-h-20 flex-col items-start justify-start whitespace-normal px-4 py-3 text-start"
                     >
                       <Icon data-icon="inline-start" />
                       <span className="font-medium">{option.name}</span>
@@ -1189,7 +1190,7 @@ export default function SettingsPage() {
                 <SelectField
                   label="Language"
                   value={profile.language}
-                  options={["en", "fr", "de", "es", "it", "nl"]}
+                  options={localeCodes.map((code) => ({ value: code, label: locales[code].nativeName }))}
                   onChange={(language) => setProfile({ ...profile, language })}
                 />
                 <TextField
@@ -1200,7 +1201,11 @@ export default function SettingsPage() {
                 <SelectField
                   label="Theme"
                   value={profile.theme}
-                  options={["system", "light", "dark"]}
+                  options={[
+                    { value: "system", label: "System" },
+                    { value: "light", label: "Light" },
+                    { value: "dark", label: "Dark" },
+                  ]}
                   onChange={(theme) => setProfile({ ...profile, theme })}
                 />
               </div>
@@ -1611,7 +1616,7 @@ function SelectField({
 }: {
   label: string;
   value: string;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -1624,11 +1629,13 @@ function SelectField({
         </SelectTrigger>
         <SelectContent>
           <SelectGroup>
-            {options.map((option) => (
-              <SelectItem key={option} value={option} className="capitalize">
-                {option.replaceAll("_", " ")}
+            {options.map((option) => {
+              const value = typeof option === "string" ? option : option.value;
+              const optionLabel = typeof option === "string" ? option.replaceAll("_", " ") : option.label;
+              return <SelectItem key={value} value={value} className="capitalize">
+                {optionLabel}
               </SelectItem>
-            ))}
+            })}
           </SelectGroup>
         </SelectContent>
       </Select>

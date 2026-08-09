@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, get, post } from '@/lib/api'
+import { resolveLocale } from '@/i18n/catalog'
+import { useI18n, type ThemePreference } from '@/i18n/i18n'
 
 export type User = { id: string; name: string; email: string; language: string; timezone: string; theme: string }
 export type Brand = { id: string; workspace_id: string; name: string; from_name: string; from_email: string; reply_to: string; provider: string; [key: string]: unknown }
@@ -20,6 +22,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { setLocale, setTheme } = useI18n()
   const [bootstrap, setBootstrap] = useState<Bootstrap>({ user: null, brands: [], workspaces: [], capabilities: {} })
   const [brandId, setBrandId] = useState(() => localStorage.getItem('sendry_brand') ?? '')
   const [loading, setLoading] = useState(true)
@@ -35,13 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => { void refresh() }, [])
   useEffect(() => { if (brandId) localStorage.setItem('sendry_brand', brandId) }, [brandId])
   useEffect(() => {
-    const preferred = bootstrap.user?.theme ?? 'system'
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
-    const apply = () => document.documentElement.classList.toggle('dark', preferred === 'dark' || (preferred === 'system' && media.matches))
-    apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
-  }, [bootstrap.user?.theme])
+    if (!bootstrap.user) return
+    setLocale(resolveLocale(bootstrap.user.language))
+    const preferred = bootstrap.user.theme
+    setTheme(preferred === 'light' || preferred === 'dark' ? preferred : 'system' as ThemePreference)
+  }, [bootstrap.user, setLocale, setTheme])
 
   const value = useMemo<AuthContextValue>(() => ({
     user: bootstrap.user,

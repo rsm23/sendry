@@ -7,6 +7,12 @@ import { Toaster } from 'sonner'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from '@/lib/auth'
+import { I18nProvider, useI18n } from '@/i18n/i18n'
+
+function LocalizedToaster() {
+  const { direction } = useI18n()
+  return <Toaster richColors position={direction === 'rtl' ? 'bottom-left' : 'bottom-right'} />
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,15 +22,17 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <TooltipProvider>
-          <AuthProvider>
-            <App />
-            <Toaster richColors position="bottom-right" />
-          </AuthProvider>
-        </TooltipProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <TooltipProvider>
+            <AuthProvider>
+              <App />
+              <LocalizedToaster />
+            </AuthProvider>
+          </TooltipProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </I18nProvider>
   </StrictMode>,
 )
