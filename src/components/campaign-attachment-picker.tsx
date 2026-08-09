@@ -111,7 +111,7 @@ export function CampaignAttachmentPicker({ brandId, open, selectedIds, onOpenCha
                 </span>
               ))}
             </nav>
-            <input ref={uploadInput} type="file" multiple className="hidden" aria-label="Upload files" onChange={(event) => void upload(event.target.files)} />
+            <Input ref={uploadInput} type="file" multiple className="hidden" aria-label="Upload files" onChange={(event) => void upload(event.target.files)} />
             <Button type="button" size="sm" variant="outline" disabled={uploading} onClick={() => uploadInput.current?.click()}>
               {uploading ? <LoaderCircle className="animate-spin" /> : <Upload />}
               {uploading ? 'Uploading…' : 'Upload'}

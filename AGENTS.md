@@ -45,6 +45,14 @@ Use logical direction utilities everywhere: `start/end`, `ms/me`, `ps/pe`, `bord
 
 The shadcn configuration is in `components.json`. Reuse a primitive from `src/components/ui/` before creating a local replacement. Compose primitives in feature components; do not fork basic Button, Input, Dialog, Select, Sheet, Table, Tabs, Dropdown, Field, Card, or Toast behavior inside pages.
 
+Application UI controls must use shadcn primitives or shared feature components composed from them. This is a non-negotiable consistency rule:
+
+- Use `Input`, `Textarea`, `Checkbox`, `Switch`, `RadioGroup`, `Select`, `NativeSelect`, `ToggleGroup`, and `Button` instead of styling raw HTML form controls in pages or feature components.
+- Use the shared `DatePicker` and `DateTimePicker` from `src/components/date-picker.tsx` for date and date-time selection. They compose shadcn `Calendar`, `Popover`, `Input`, `Field`, and `Button`; do not ship bare `input[type=date]` or `input[type=datetime-local]` controls in the administration app.
+- Put `SelectItem` elements inside `SelectGroup`, and use `FieldGroup`, `Field`, `FieldLabel`, `FieldDescription`, and `FieldError` to structure forms and validation.
+- Product-specific wrappers belong in `src/components/`, while generic shadcn primitives stay in `src/components/ui/`. Search the installed components and read the current shadcn docs before adding or recreating a control.
+- Raw controls are allowed only when they are part of customer-authored or delivered HTML, portable embed-code examples, email/message previews, or a browser capability that cannot be expressed through an installed primitive. Keep those exceptions isolated and document why they cannot use the shared component.
+
 Keep shadcn primitives generic and product copy out of them. Product-specific state belongs in shared components outside `ui/` or in the route. Preserve Base UI interaction and accessibility behavior when styling. Use `cn()` for conditional class composition and CVA for reusable variants. Never edit a primitive solely to fix one screen when a wrapper or caller class is sufficient; primitive changes must be validated across all consumers and in RTL.
 
 When adding a shadcn component, use the existing aliases and Tailwind setup. Review generated code before keeping it, convert physical positioning to logical positioning where appropriate, and verify light, dark, LTR, and RTL behavior.
