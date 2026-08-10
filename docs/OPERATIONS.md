@@ -74,6 +74,8 @@ Backups must include the SQLite database and every referenced object in `UPLOAD_
 
 The File Library accepts scanned non-executable formats independently of the campaign attachment allowlist. Campaign delivery re-checks the brand extension allowlist and resolves the selected file's current immutable version at send time. PE, Mach-O, ELF signatures, malformed OOXML, and ZIP packages outside entry, expanded-size, or compression-ratio limits are rejected.
 
+Authenticated and external-link folder downloads stream ZIP entries directly from authorized current versions. Archives are not staged in `UPLOAD_DIR`, object storage, or another temporary server path. A folder archive is limited to 10,000 visible entries, excludes trashed items, and external folder links stop at subtrees that explicitly break permission inheritance.
+
 External links may intentionally be non-expiring or passwordless, but the UI warns before creation. Operational policy should define who may create them, whether expiry/passwords are mandatory, and how access logs are reviewed. Revoke exposed links immediately; tokens are stored only as hashes and cannot be recovered from the database.
 
 ## Delivery providers

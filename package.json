@@ -5,8 +5,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,green \"pnpm dev:server\" \"pnpm dev:web\"",
+    "dev": "concurrently -k -n api,web -c blue,green \"pnpm dev:server\" \"pnpm dev:web:ready\"",
     "dev:web": "vite",
+    "dev:web:ready": "node --env-file-if-exists=.env scripts/wait-for-api.mjs && pnpm dev:web",
     "dev:server": "tsx watch server/index.ts",
     "build": "pnpm typecheck && vite build && tsup server/index.ts server/multichannel-worker.ts --format esm --platform node --out-dir dist-server --clean --external better-sqlite3",
     "start": "node dist-server/index.js",

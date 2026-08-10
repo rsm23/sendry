@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import request from "supertest";
 import { createHash } from "node:crypto";
+import { existsSync, readdirSync } from "node:fs";
 import type { Express } from "express";
 import { createApp } from "../server/app";
 import { openDatabase, seedDatabase, type AppDatabase } from "../server/db";
@@ -20,6 +21,18 @@ const config = {
   mailTransport: "stream" as const,
   databasePath: ":memory:",
 };
+
+function binaryParser(response: request.Response, callback: (error: Error | null, body: Buffer) => void) {
+  const chunks: Buffer[] = [];
+  response.on("data", (chunk: Buffer | string) => chunks.push(Buffer.from(chunk)));
+  response.on("end", () => callback(null, Buffer.concat(chunks)));
+  response.on("error", (error: Error) => callback(error, Buffer.alloc(0)));
+}
+
+function zipFilesOnServer() {
+  if (!existsSync(config.uploadDir)) return [];
+  return (readdirSync(config.uploadDir, { recursive: true }) as string[]).filter((path) => path.toLowerCase().endsWith(".zip")).sort();
+}
 
 describe("Sendry API", () => {
   let db: AppDatabase;
@@ -271,6 +284,81 @@ describe("Sendry API", () => {
       .get(`/api/brands/brd_atlas/files/${file.id}`)
       .expect(200);
     expect(restored.body.trashed_at).toBeNull();
+  });
+
+  it("streams recursive folder ZIPs without persisting archives and secures folder shares", async () => {
+    const beforeZipFiles = zipFilesOnServer();
+    const root = await agent
+      .post("/api/brands/brd_atlas/files/folder")
+      .send({ name: "Release assets" })
+      .expect(201);
+    const nested = await agent
+      .post("/api/brands/brd_atlas/files/folder")
+      .send({ name: "Press kit", parent_id: root.body.id })
+      .expect(201);
+    const uploaded = await agent
+      .post("/api/brands/brd_atlas/files/upload")
+      .field("parent_id", nested.body.id)
+      .attach("files", Buffer.from("recursive archive fixture"), {
+        filename: "readme.txt",
+        contentType: "text/plain",
+      })
+      .expect(201);
+
+    try {
+      const archive = await agent
+        .get(`/api/brands/brd_atlas/files/bulk/download?ids=${root.body.id}`)
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200)
+        .expect("Content-Type", /application\/zip/)
+        .expect("Cache-Control", "private, no-store");
+      expect(Buffer.isBuffer(archive.body)).toBe(true);
+      expect(archive.body.includes(Buffer.from("Release assets/Press kit/readme.txt"))).toBe(true);
+
+      const shared = await agent
+        .post(`/api/brands/brd_atlas/files/${root.body.id}/shares`)
+        .send({ allow_download: true, expires_at: null, password: "FolderPass123!" })
+        .expect(201);
+      const locked = await request(app)
+        .get(`/api/share/files/${shared.body.token}`)
+        .expect(200);
+      expect(locked.body).toMatchObject({ kind: "folder", unlocked: false, children: [] });
+      const metadata = await request(app)
+        .get(`/api/share/files/${shared.body.token}`)
+        .set("X-Share-Password", "FolderPass123!")
+        .expect(200);
+      expect(metadata.body.children).toEqual(expect.arrayContaining([expect.objectContaining({ id: nested.body.id, kind: "folder" })]));
+
+      const publicArchive = await request(app)
+        .get(`/api/share/files/${shared.body.token}/content?download=1`)
+        .set("X-Share-Password", "FolderPass123!")
+        .buffer(true)
+        .parse(binaryParser)
+        .expect(200)
+        .expect("Content-Type", /application\/zip/);
+      expect(publicArchive.body.includes(Buffer.from("Release assets/Press kit/readme.txt"))).toBe(true);
+
+      await agent
+        .patch(`/api/brands/brd_atlas/files/${nested.body.id}`)
+        .send({ inherit_permissions: false })
+        .expect(200);
+      const boundary = await request(app)
+        .get(`/api/share/files/${shared.body.token}`)
+        .set("X-Share-Password", "FolderPass123!")
+        .expect(200);
+      expect(boundary.body.children).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: nested.body.id })]));
+      await request(app)
+        .get(`/api/share/files/${shared.body.token}?fileId=${nested.body.id}`)
+        .set("X-Share-Password", "FolderPass123!")
+        .expect(404);
+
+      expect(zipFilesOnServer()).toEqual(beforeZipFiles);
+    } finally {
+      await agent.delete(`/api/brands/brd_atlas/files/${root.body.id}`);
+      await agent.delete(`/api/brands/brd_atlas/files/${root.body.id}/forever`);
+      expect(uploaded.body[0].id).toBeTruthy();
+    }
   });
 
   it("does not reuse an AI key when the provider changes", async () => {

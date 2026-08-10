@@ -52,6 +52,7 @@ test("uses shared shadcn inputs for file uploads", async ({ page }) => {
 
 test("uses the shared shadcn calendar for file-share expiry", async ({ page }) => {
   await page.goto("/files");
+  await page.getByRole("button", { name: "Grid view", exact: true }).click();
   await page.getByRole("button", { name: "Show details for logos", exact: true }).click();
   await page.getByRole("tab", { name: "Access", exact: true }).click();
   await page.getByRole("button", { name: "Create link", exact: true }).click();
@@ -62,6 +63,35 @@ test("uses the shared shadcn calendar for file-share expiry", async ({ page }) =
   await expect(shareDialog.locator('input[type="date"]')).toHaveCount(0);
   await expiry.click();
   await expect(page.locator('[data-slot="calendar"]')).toBeVisible();
+});
+
+test("shows folder actions when right-clicking empty folder space", async ({ page }) => {
+  await page.goto("/files");
+  await page.getByRole("button", { name: "Grid view", exact: true }).click();
+  await page.getByRole("button", { name: "Select logos", exact: true }).dblclick();
+  await expect(page).toHaveURL(/parentId=dir_logos/);
+
+  const canvas = page.locator('[data-testid="folder-canvas"]:visible');
+  await canvas.click({ button: "right", position: { x: 24, y: 300 } });
+  const menu = page.locator('[data-slot="context-menu-content"]:visible');
+  await expect(menu).toContainText("logos");
+  await expect(menu.getByRole("menuitem", { name: "New folder", exact: true })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Upload files", exact: true })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Upload folder", exact: true })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Download folder", exact: true })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Folder information", exact: true })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: "Share folder", exact: true })).toBeVisible();
+
+  await menu.getByRole("menuitem", { name: "Folder information", exact: true }).click();
+  const detailsDialog = page.getByRole("dialog", { name: "File details" });
+  await expect(detailsDialog.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("data-active");
+  await detailsDialog.getByRole("button", { name: "Close", exact: true }).click();
+
+  await canvas.click({ button: "right", position: { x: 24, y: 300 } });
+  await page.locator('[data-slot="context-menu-content"]:visible').getByRole("menuitem", { name: "Share folder", exact: true }).click();
+  const shareDialog = page.getByRole("dialog", { name: "File details" });
+  await expect(shareDialog.getByRole("tab", { name: "Access", exact: true })).toHaveAttribute("data-active");
+  await expect(shareDialog.getByRole("button", { name: "Create link", exact: true })).toBeVisible();
 });
 
 test("deselects items and opens folders or file previews on double click", async ({ page }) => {
@@ -82,6 +112,7 @@ test("deselects items and opens folders or file previews on double click", async
 
   try {
     await page.goto("/files");
+    await page.getByRole("button", { name: "Grid view", exact: true }).click();
     await page.getByRole("button", { name: "Select logos", exact: true }).click();
     await expect(page.getByRole("button", { name: "Selected logos", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Clear selection", exact: true })).toBeVisible();
@@ -144,7 +175,8 @@ test("uses a compact custom drag image for file cards", async ({ page }) => {
   await logoCard.dispatchEvent("dragend", { dataTransfer });
 });
 
-test("shows moved items immediately in a previously visited folder", async ({ page }) => {
+test("shows moved items immediately in a previously visited folder", async ({ page, isMobile }) => {
+  test.skip(isMobile, "HTML drag and drop is a desktop pointer interaction");
   const suffix = `${Date.now()}`;
   const targetResponse = await page.request.post("/api/brands/brd_atlas/files/folder", { data: { name: `Move target ${suffix}` } });
   const sourceResponse = await page.request.post("/api/brands/brd_atlas/files/folder", { data: { name: `Move source ${suffix}` } });
@@ -155,18 +187,19 @@ test("shows moved items immediately in a previously visited folder", async ({ pa
 
   try {
     await page.goto("/files");
+    await page.getByRole("button", { name: "Grid view", exact: true }).click();
     await page.getByRole("button", { name: `Select ${target.name}`, exact: true }).dispatchEvent("dblclick");
     await expect(page).toHaveURL(new RegExp(`parentId=${target.id}`));
-    await expect(page.getByText("Build your file library", { exact: true }).first()).toBeVisible();
+    await expect(page.locator("h2:visible", { hasText: "Build your file library" })).toBeVisible();
     await page.getByRole("navigation", { name: "breadcrumb" }).first().getByRole("button", { name: "All files" }).click();
 
-    const sourceCard = page.locator('[draggable="true"]').filter({ hasText: source.name }).first();
-    const targetCard = page.locator('[draggable="true"]').filter({ hasText: target.name }).first();
+    const sourceCard = page.locator('[draggable="true"]:visible').filter({ hasText: source.name });
+    const targetCard = page.locator('[draggable="true"]:visible').filter({ hasText: target.name });
     await sourceCard.dragTo(targetCard);
     await expect(page.getByText("Item moved", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: `Select ${target.name}`, exact: true }).dispatchEvent("dblclick");
 
-    await expect(page.getByText(source.name, { exact: true }).first()).toBeVisible();
+    await expect(page.locator("p:visible", { hasText: source.name })).toBeVisible();
   } finally {
     await page.request.delete(`/api/brands/brd_atlas/files/${source.id}`);
     await page.request.delete(`/api/brands/brd_atlas/files/${source.id}/forever`);

@@ -3,6 +3,7 @@ import { compare, hash } from 'bcryptjs'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { Readable } from 'node:stream'
 import { Router, type NextFunction, type Request, type Response } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
@@ -148,6 +149,88 @@ function auditFile(db: AppDatabase, request: Request, action: string, file: File
 
 function contentVersion(db: AppDatabase, file: FileRow, requested?: string) {
   return db.prepare('SELECT * FROM file_versions WHERE file_id=? AND id=?').get(file.id, requested || file.current_version_id) as Record<string, unknown> | undefined
+}
+
+type ArchiveEntry = { file: FileRow; path: string; version?: Record<string, unknown> }
+
+function safeArchiveSegment(value: string) {
+  const safe = value.normalize('NFC').replace(/[\\/\0]/g, '_').trim()
+  return !safe || safe === '.' || safe === '..' ? 'untitled' : safe
+}
+
+function uniqueArchivePath(preferred: string, claimed: Set<string>) {
+  let candidate = preferred
+  let index = 2
+  while (claimed.has(candidate.toLocaleLowerCase())) {
+    const separator = preferred.lastIndexOf('/')
+    const directory = separator >= 0 ? preferred.slice(0, separator + 1) : ''
+    const name = separator >= 0 ? preferred.slice(separator + 1) : preferred
+    const extension = name.lastIndexOf('.') > 0 ? name.slice(name.lastIndexOf('.')) : ''
+    const stem = extension ? name.slice(0, -extension.length) : name
+    candidate = `${directory}${stem} (${index})${extension}`
+    index += 1
+  }
+  claimed.add(candidate.toLocaleLowerCase())
+  return candidate
+}
+
+function archiveEntries(db: AppDatabase, roots: FileRow[], canInclude: (file: FileRow) => boolean, inheritedOnly = false) {
+  const entries: ArchiveEntry[] = []
+  const claimed = new Set<string>()
+  for (const root of roots) {
+    const rows = db.prepare(`WITH RECURSIVE descendants AS (
+      SELECT f.*,0 AS depth FROM files f WHERE f.id=? AND f.trashed_at IS NULL
+      UNION ALL
+      SELECT f.*,d.depth+1 FROM files f JOIN descendants d ON f.parent_id=d.id
+      WHERE f.trashed_at IS NULL${inheritedOnly ? ' AND f.inherit_permissions=1' : ''}
+    ) SELECT * FROM descendants ORDER BY depth,kind DESC,name,id`).all(root.id) as Array<FileRow & { depth: number }>
+    const paths = new Map<string, string>()
+    const included = new Set<string>()
+    for (const row of rows) {
+      if (row.id !== root.id && row.parent_id && !included.has(row.parent_id)) continue
+      if (!canInclude(row)) continue
+      const parentPath = row.id === root.id ? '' : paths.get(row.parent_id ?? '') ?? ''
+      const preferred = parentPath ? `${parentPath}/${safeArchiveSegment(row.name)}` : safeArchiveSegment(row.name)
+      const path = uniqueArchivePath(preferred, claimed)
+      paths.set(row.id, path)
+      included.add(row.id)
+      entries.push({ file: row, path, version: row.kind === 'file' ? contentVersion(db, row) : undefined })
+      if (entries.length > 10_000) throw new Error('Folder archive exceeds the 10,000 item limit')
+    }
+  }
+  return entries
+}
+
+function objectDownloadStream(storage: MediaStorage, storageKey: string) {
+  return Readable.from((async function* () {
+    const result = await fetch(await storage.signedDownload(storageKey))
+    if (!result.ok || !result.body) throw new Error('Stored file bytes are unavailable')
+    for await (const chunk of Readable.fromWeb(result.body as never)) yield chunk
+  })())
+}
+
+async function streamArchive(storage: MediaStorage, config: AppConfig, entries: ArchiveEntry[], response: Response, filename: string) {
+  response.setHeader('Cache-Control', 'private, no-store')
+  response.attachment(`${safeArchiveSegment(filename)}.zip`)
+  const zip = new ZipArchive({ zlib: { level: 6 } })
+  zip.on('warning', (error: ArchiverError) => response.destroy(error))
+  zip.on('error', (error: ArchiverError) => response.destroy(error))
+  zip.pipe(response)
+  for (const entry of entries) {
+    if (entry.file.kind === 'folder') {
+      zip.append(Buffer.alloc(0), { name: `${entry.path}/` })
+      continue
+    }
+    if (!entry.version) continue
+    const backend = String(entry.version.storage_backend)
+    const key = String(entry.version.storage_key)
+    if (backend === 'object') zip.append(objectDownloadStream(storage, key), { name: entry.path })
+    else {
+      const path = backend === 'legacy' ? join(config.uploadDir, basename(key)) : storage.localPath(key)
+      if (existsSync(path)) zip.file(path, { name: entry.path })
+    }
+  }
+  await zip.finalize()
 }
 
 async function sendContent(storage: MediaStorage, config: AppConfig, file: FileRow, version: Record<string, unknown>, response: Response, download = false) {
@@ -327,25 +410,18 @@ export function createFilesRouter(db: AppDatabase, config: AppConfig) {
 
   router.get('/bulk/download', asyncRoute(async (request, response) => {
     const ids = String(request.query.ids ?? '').split(',').filter(Boolean).slice(0, 100)
-    if (!ids.length) return response.status(422).json({ error: 'Select at least one file' })
-    response.attachment('sendry-files.zip')
-    const zip = new ZipArchive({ zlib: { level: 6 } })
-    zip.on('error', (error: ArchiverError) => response.destroy(error))
-    zip.pipe(response)
+    if (!ids.length) return response.status(422).json({ error: 'Select at least one item' })
+    const roots: FileRow[] = []
     for (const id of ids) {
-      const file = db.prepare("SELECT * FROM files WHERE id=? AND brand_id=? AND kind='file' AND trashed_at IS NULL").get(id, route(request, 'brandId')) as FileRow | undefined
+      const file = db.prepare('SELECT * FROM files WHERE id=? AND brand_id=? AND trashed_at IS NULL').get(id, route(request, 'brandId')) as FileRow | undefined
       const role = file && effectiveFileRole(db, request, file)
-      const version = file && role ? contentVersion(db, file) : undefined
-      if (!file || !version) continue
-      if (version.storage_backend === 'object') {
-        const result = await fetch(await storage.signedDownload(String(version.storage_key)))
-        if (result.ok) zip.append(Buffer.from(await result.arrayBuffer()), { name: file.name })
-      } else {
-        const path = version.storage_backend === 'legacy' ? join(config.uploadDir, basename(String(version.storage_key))) : storage.localPath(String(version.storage_key))
-        if (existsSync(path)) zip.file(path, { name: file.name })
-      }
+      if (file && role) roots.push(file)
     }
-    await zip.finalize()
+    if (!roots.length) return response.status(404).json({ error: 'No accessible items were found' })
+    const entries = archiveEntries(db, roots, (file) => Boolean(effectiveFileRole(db, request, file)))
+    const filename = roots.length === 1 && roots[0].kind === 'folder' ? roots[0].name : 'sendry-files'
+    for (const root of roots) auditFile(db, request, 'download_archive', root, { entries: entries.length })
+    await streamArchive(storage, config, entries, response, filename)
   }))
 
   router.get('/:fileId', (request, response) => {
@@ -586,7 +662,11 @@ async function sharePasswordValid(share: { password_hash: string | null }, reque
 }
 
 function publicDescendant(db: AppDatabase, rootId: string, requestedId: string) {
-  return db.prepare(`WITH RECURSIVE descendants(id) AS (SELECT id FROM files WHERE id=? UNION ALL SELECT f.id FROM files f JOIN descendants d ON f.parent_id=d.id WHERE f.trashed_at IS NULL) SELECT 1 FROM descendants WHERE id=?`).get(rootId, requestedId)
+  return db.prepare(`WITH RECURSIVE descendants(id) AS (
+    SELECT id FROM files WHERE id=?
+    UNION ALL SELECT f.id FROM files f JOIN descendants d ON f.parent_id=d.id
+    WHERE f.trashed_at IS NULL AND f.inherit_permissions=1
+  ) SELECT 1 FROM descendants WHERE id=?`).get(rootId, requestedId)
 }
 
 export function createPublicFileShareRouter(db: AppDatabase, config: AppConfig) {
@@ -607,7 +687,7 @@ export function createPublicFileShareRouter(db: AppDatabase, config: AppConfig) 
     if (!publicDescendant(db, share.file_id, selectedId)) return response.status(404).json({ error: 'Shared item not found' })
     const selected = db.prepare('SELECT * FROM files WHERE id=? AND trashed_at IS NULL').get(selectedId) as FileRow | undefined
     if (!selected) return response.status(404).json({ error: 'Shared item not found' })
-    const children = unlocked && selected.kind === 'folder' ? db.prepare("SELECT id,parent_id,kind,name,mime_type,size,updated_at FROM files WHERE parent_id=? AND trashed_at IS NULL ORDER BY kind DESC,name").all(selected.id) : []
+    const children = unlocked && selected.kind === 'folder' ? db.prepare("SELECT id,parent_id,kind,name,mime_type,size,updated_at FROM files WHERE parent_id=? AND trashed_at IS NULL AND inherit_permissions=1 ORDER BY kind DESC,name").all(selected.id) : []
     response.json({ id: selected.id, root_id: share.file_id, parent_id: selected.parent_id, kind: selected.kind, name: selected.name, mime_type: selected.mime_type, size: selected.size, expires_at: share.expires_at, password_required: Boolean(share.password_hash), unlocked, allow_download: Boolean(share.allow_download), children, ...preview(selected, config) })
   }))
   router.get('/:token/content', asyncRoute(async (request, response) => {
@@ -616,10 +696,17 @@ export function createPublicFileShareRouter(db: AppDatabase, config: AppConfig) 
     if (!await sharePasswordValid(share, request)) return response.status(401).json({ error: 'Share password required' })
     const selectedId = request.query.fileId ? String(request.query.fileId) : share.file_id
     if (!publicDescendant(db, share.file_id, selectedId)) return response.status(404).json({ error: 'Shared item not found' })
-    const selected = db.prepare("SELECT * FROM files WHERE id=? AND kind='file' AND trashed_at IS NULL").get(selectedId) as FileRow | undefined
-    if (!selected) return response.status(404).json({ error: 'Shared file not found' })
+    const selected = db.prepare('SELECT * FROM files WHERE id=? AND trashed_at IS NULL').get(selectedId) as FileRow | undefined
+    if (!selected) return response.status(404).json({ error: 'Shared item not found' })
     const download = request.query.download === '1'
     if (download && !share.allow_download) return response.status(403).json({ error: 'Downloads are disabled for this link' })
+    if (selected.kind === 'folder') {
+      if (!download) return response.status(404).json({ error: 'Shared folders can only be downloaded as ZIP archives' })
+      const entries = archiveEntries(db, [selected], () => true, true)
+      db.prepare('UPDATE file_share_links SET last_accessed_at=?,access_count=access_count+1 WHERE id=?').run(nowIso(), share.id)
+      db.prepare('INSERT INTO file_share_access_log (id,share_link_id,ip,user_agent,action,occurred_at) VALUES (?,?,?,?,?,?)').run(entityId('sal'), share.id, request.ip, request.headers['user-agent'] ?? '', 'download', nowIso())
+      return streamArchive(storage, config, entries, response, selected.name)
+    }
     const version = contentVersion(db, selected)
     if (!version) return response.status(404).json({ error: 'File version not found' })
     db.prepare('UPDATE file_share_links SET last_accessed_at=?,access_count=access_count+1 WHERE id=?').run(nowIso(), share.id)

@@ -45,6 +45,11 @@ pnpm dev:services
 pnpm dev
 ```
 
+`pnpm dev` starts the API and web processes together. The web process waits for
+the API health check before Vite starts, so initial page requests are not sent
+to port 4010 while the API is still booting. For frontend-only work against an
+API that is already running, use `pnpm dev:web`.
+
 To stop the infrastructure while keeping all data:
 
 ```bash
