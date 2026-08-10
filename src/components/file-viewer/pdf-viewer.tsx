@@ -59,7 +59,7 @@ export default function PDFViewer({ source, onAnchor }: ViewerComponentProps) {
       <Button size="icon-sm" variant="ghost" onClick={() => setRotation((value) => (value + 90) % 360)} aria-label={t('Rotate')}><RotateCw /></Button>
       {onAnchor ? <Button size="icon-sm" variant="ghost" onClick={() => onAnchor({ kind: 'page', page, rect: [0, 0, 1, 1] })} aria-label={t('Comment on this page')}><MessageSquarePlus /></Button> : null}
       {source.allowDownload !== false ? <Button size="icon-sm" variant="ghost" onClick={() => window.open(source.url, '_blank', 'noopener,noreferrer')} aria-label={t('Print')}><Printer /></Button> : null}
-      {source.allowDownload !== false ? <Button size="icon-sm" variant="ghost" render={<a href={`${source.url}${source.url.includes('?') ? '&' : '?'}download=1`} download />} aria-label={t('Download')}><Download /></Button> : null}
+      {source.allowDownload !== false ? <Button nativeButton={false} size="icon-sm" variant="ghost" render={<a href={`${source.url}${source.url.includes('?') ? '&' : '?'}download=1`} download />} aria-label={t('Download')}><Download /></Button> : null}
     </div>
     <div className="flex min-h-0 flex-1 overflow-hidden">
       {document ? <aside className="hidden w-36 shrink-0 overflow-y-auto border-e bg-background p-2 md:block">{Array.from({ length: document.numPages }, (_, index) => <PDFThumbnail key={index + 1} document={document} page={index + 1} selected={page === index + 1} onSelect={setPage} />)}</aside> : null}

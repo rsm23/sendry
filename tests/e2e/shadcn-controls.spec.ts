@@ -64,6 +64,48 @@ test("uses the shared shadcn calendar for file-share expiry", async ({ page }) =
   await expect(page.locator('[data-slot="calendar"]')).toBeVisible();
 });
 
+test("deselects items and opens folders or file previews on double click", async ({ page }) => {
+  const baseUiErrors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error" && message.text().includes("Base UI")) baseUiErrors.push(message.text()); });
+  const fileName = `Double click ${Date.now()}.txt`;
+  const uploadResponse = await page.request.post("/api/brands/brd_atlas/files/upload", {
+    multipart: {
+      files: {
+        name: fileName,
+        mimeType: "text/plain",
+        buffer: Buffer.from("Double-click preview fixture"),
+      },
+    },
+  });
+  expect(uploadResponse.ok()).toBe(true);
+  const [uploaded] = await uploadResponse.json() as Array<{ id: string }>;
+
+  try {
+    await page.goto("/files");
+    await page.getByRole("button", { name: "Select logos", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Selected logos", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Clear selection", exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Selected logos", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Select logos", exact: true })).toBeVisible();
+    await expect(page.locator('[aria-label="Clear selection"]')).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Select logos", exact: true }).dblclick();
+    await expect(page).toHaveURL(/parentId=dir_logos/);
+    await expect(page.locator('[aria-label="Clear selection"]')).toHaveCount(0);
+
+    await page.goto("/files");
+    await page.getByRole("button", { name: `Select ${fileName}`, exact: true }).dblclick();
+    await expect(page).toHaveURL(new RegExp(`/files/${uploaded.id}`));
+    await expect(page.locator(".cm-content").first()).toContainText("Double-click preview fixture");
+    await expect(page.locator('[aria-label="Clear selection"]')).toHaveCount(0);
+    expect(baseUiErrors).toEqual([]);
+  } finally {
+    await page.request.delete(`/api/brands/brd_atlas/files/${uploaded.id}`);
+    await page.request.delete(`/api/brands/brd_atlas/files/${uploaded.id}/forever`);
+  }
+});
+
 test("uses a compact custom drag image for file cards", async ({ page }) => {
   await page.addInitScript(() => {
     const original = DataTransfer.prototype.setDragImage;

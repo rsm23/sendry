@@ -135,6 +135,7 @@ export default function FilesPage() {
   const uploadInput = useRef<HTMLInputElement>(null)
   const workspace = useRef<HTMLDivElement>(null)
   const lastSelected = useRef<number | null>(null)
+  const pendingSelection = useRef<number | null>(null)
   const [selection, setSelection] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<ViewMode>('list')
   const [search, setSearch] = useState(params.get('q') ?? '')
@@ -172,6 +173,7 @@ export default function FilesPage() {
   useEffect(() => { if (preferences.data) setViewMode(preferences.data.view_mode) }, [preferences.data])
   useEffect(() => { if ((params.get('q') ?? '') === search) return; const timeout = window.setTimeout(() => updateParam('q', search || null, true), 300); return () => window.clearTimeout(timeout) }, [params, search, updateParam])
   useEffect(() => { const update = () => setOnline(navigator.onLine); window.addEventListener('online', update); window.addEventListener('offline', update); return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update) } }, [])
+  useEffect(() => () => { if (pendingSelection.current !== null) window.clearTimeout(pendingSelection.current) }, [])
   useEffect(() => { setSelection((current) => new Set([...current].filter((id) => files.data?.some((item) => item.id === id)))) }, [files.data])
   useEffect(() => { if (routeFileId && viewer.data?.kind === 'folder') { const next = new URLSearchParams(params); next.set('parentId', routeFileId); navigate(`/files?${next}`, { replace: true }) } }, [navigate, params, routeFileId, viewer.data?.kind])
 
@@ -185,14 +187,25 @@ export default function FilesPage() {
     ])
   }
   async function persistMode(next: ViewMode) { setViewMode(next); if (!brand) return; await patch(`/api/brands/${brand.id}/files/preferences`, { view_mode: next, sort_key: sort, sort_direction: direction, details_width: preferences.data?.details_width ?? 360 }) }
-  function openItem(item: FileItem) { if (item.kind === 'folder') { const next = new URLSearchParams(params); next.delete('view'); next.set('parentId', item.id); navigate(`/files?${next}`) } else navigate(`/files/${item.id}?${params}`) }
+  function clearPendingSelection() { if (pendingSelection.current !== null) { window.clearTimeout(pendingSelection.current); pendingSelection.current = null } }
+  function openItem(item: FileItem) { clearPendingSelection(); setSelection(new Set()); lastSelected.current = null; if (item.kind === 'folder') { const next = new URLSearchParams(params); next.delete('view'); next.set('parentId', item.id); navigate(`/files?${next}`) } else navigate(`/files/${item.id}?${params}`) }
   function select(item: FileItem, index: number, event?: MouseEvent) {
-    setSelection((current) => {
-      if (event?.shiftKey && lastSelected.current !== null && files.data) { const next = new Set(event.metaKey || event.ctrlKey ? current : []); const [from, to] = [lastSelected.current, index].sort((a, b) => a - b); files.data.slice(from, to + 1).forEach((row) => next.add(row.id)); return next }
-      if (event?.metaKey || event?.ctrlKey) { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); lastSelected.current = index; return next }
-      lastSelected.current = index; return new Set([item.id])
-    })
-    setDetailsOpen(true)
+    clearPendingSelection()
+    if (event && event.detail > 1) return
+    const shiftKey = Boolean(event?.shiftKey)
+    const additive = Boolean(event?.metaKey || event?.ctrlKey)
+    const update = () => {
+      pendingSelection.current = null
+      setSelection((current) => {
+        if (shiftKey && lastSelected.current !== null && files.data) { const next = new Set(additive ? current : []); const [from, to] = [lastSelected.current, index].sort((a, b) => a - b); files.data.slice(from, to + 1).forEach((row) => next.add(row.id)); return next }
+        if (additive) { const next = new Set(current); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); lastSelected.current = index; return next }
+        if (current.size === 1 && current.has(item.id)) { lastSelected.current = null; return new Set() }
+        lastSelected.current = index; return new Set([item.id])
+      })
+      setDetailsOpen(true)
+    }
+    if (event?.detail === 1) pendingSelection.current = window.setTimeout(update, 300)
+    else update()
   }
   async function bulk(action: 'trash' | 'restore' | 'star' | 'unstar' | 'move' | 'copy', ids = [...selection], target?: string | null) { if (!brand || !ids.length) return; await post(`/api/brands/${brand.id}/files/bulk`, { ids, action, parent_id: target }); setSelection(new Set()); await refresh(); toast.success(t(bulkSuccess(action, ids.length), { count: ids.length })) }
   function download(ids = [...selection]) { window.location.assign(`/api/brands/${brand?.id}/files/bulk/download?ids=${encodeURIComponent(ids.join(','))}`) }
