@@ -19,3 +19,9 @@ Do not translate customer content, brand names, email addresses, URLs, provider 
 Use semantic shadcn/Tailwind tokens such as `bg-background`, `bg-card`, `text-foreground`, `text-muted-foreground`, and `border-border`. Add paired light/dark variants only for semantic status colors. Do not introduce fixed white/black application surfaces; fixed colors are allowed inside message previews where they represent delivered content.
 
 Use logical layout utilities (`start/end`, `ms/me`, `ps/pe`, `border-s/border-e`, `text-start/text-end`) so the same component works in LTR and RTL. The root `lang`, `dir`, theme class, `color-scheme`, and theme-color metadata are owned by `I18nProvider`.
+
+## Files and viewer QA
+
+The Files workspace, details tabs, collaboration controls, unsupported-preview reasons, upload states, password prompts, public share pages, and viewer toolbars are cataloged in all four locales. Dynamic file/folder names, sheet names, cell contents, document text, code, hashes, member names, and MIME identifiers are domain data and use `translate="no"` where the browser could otherwise translate them.
+
+Arabic QA must cover the workspace sidebar side, breadcrumb order and chevrons, logical table spacing, selection and context menus, drag/drop alternatives, resizable details panel, bottom mobile Sheet, slide/page navigation, sheet row headers, mixed Latin filenames, code line numbers, and public link password flow. Office and PDF document content keeps its source direction; changing the administrator locale must not rewrite or reorder document data.

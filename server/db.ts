@@ -426,9 +426,118 @@ CREATE TABLE IF NOT EXISTS files (
   storage_name TEXT,
   mime_type TEXT,
   size INTEGER NOT NULL DEFAULT 0,
+  description TEXT NOT NULL DEFAULT '',
+  color TEXT,
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  visibility TEXT NOT NULL DEFAULT 'brand',
+  inherit_permissions INTEGER NOT NULL DEFAULT 1,
+  current_version_id TEXT,
+  trashed_at TEXT,
+  trashed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  original_parent_id TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS file_versions (
+  id TEXT PRIMARY KEY,
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  version_number INTEGER NOT NULL,
+  storage_backend TEXT NOT NULL DEFAULT 'legacy',
+  storage_key TEXT NOT NULL,
+  original_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+  size INTEGER NOT NULL DEFAULT 0,
+  sha256 TEXT NOT NULL DEFAULT '',
+  scan_state TEXT NOT NULL DEFAULT 'available',
+  scan_detail TEXT NOT NULL DEFAULT '',
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(file_id, version_number)
+);
+CREATE INDEX IF NOT EXISTS file_versions_file ON file_versions(file_id, version_number DESC);
+CREATE INDEX IF NOT EXISTS file_versions_object ON file_versions(storage_backend, storage_key);
+
+CREATE TABLE IF NOT EXISTS file_stars (
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY(file_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS file_permissions (
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK(role IN ('viewer','commenter','editor','manager')),
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(file_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS file_comments (
+  id TEXT PRIMARY KEY,
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  version_id TEXT REFERENCES file_versions(id) ON DELETE SET NULL,
+  parent_id TEXT REFERENCES file_comments(id) ON DELETE CASCADE,
+  author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  visibility TEXT NOT NULL DEFAULT 'team' CHECK(visibility IN ('team','private')),
+  body TEXT NOT NULL,
+  anchor TEXT NOT NULL DEFAULT '{"kind":"file"}',
+  resolved_at TEXT,
+  resolved_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS file_comments_file ON file_comments(file_id, created_at);
+
+CREATE TABLE IF NOT EXISTS file_share_links (
+  id TEXT PRIMARY KEY,
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  password_hash TEXT,
+  allow_download INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  revoked_at TEXT,
+  last_accessed_at TEXT,
+  access_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS file_share_links_file ON file_share_links(file_id, revoked_at);
+
+CREATE TABLE IF NOT EXISTS file_share_access_log (
+  id TEXT PRIMARY KEY,
+  share_link_id TEXT NOT NULL REFERENCES file_share_links(id) ON DELETE CASCADE,
+  ip TEXT,
+  user_agent TEXT,
+  action TEXT NOT NULL,
+  occurred_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS file_view_preferences (
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  view_mode TEXT NOT NULL DEFAULT 'list',
+  sort_key TEXT NOT NULL DEFAULT 'name',
+  sort_direction TEXT NOT NULL DEFAULT 'asc',
+  details_width INTEGER NOT NULL DEFAULT 360,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(brand_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL DEFAULT '',
+  read_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS notifications_user_unread ON notifications(user_id, read_at, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS provider_events (
   id TEXT PRIMARY KEY,
@@ -881,6 +990,33 @@ export function openDatabase(path = process.env.DATABASE_PATH ?? './data/sendry.
   if (!brandColumns.some((column) => column.name === 'ai_provider')) db.exec("ALTER TABLE brands ADD COLUMN ai_provider TEXT NOT NULL DEFAULT ''")
   if (!brandColumns.some((column) => column.name === 'ai_provider_config')) db.exec("ALTER TABLE brands ADD COLUMN ai_provider_config TEXT NOT NULL DEFAULT '{}'")
   if (!brandColumns.some((column) => column.name === 'ai_encrypted_api_key')) db.exec('ALTER TABLE brands ADD COLUMN ai_encrypted_api_key TEXT')
+  const fileColumns = db.prepare('PRAGMA table_info(files)').all() as Array<{ name: string }>
+  const addFileColumn = (name: string, sql: string) => {
+    if (!fileColumns.some((column) => column.name === name)) db.exec(`ALTER TABLE files ADD COLUMN ${sql}`)
+  }
+  addFileColumn('description', "description TEXT NOT NULL DEFAULT ''")
+  addFileColumn('color', 'color TEXT')
+  addFileColumn('created_by', 'created_by TEXT REFERENCES users(id) ON DELETE SET NULL')
+  addFileColumn('visibility', "visibility TEXT NOT NULL DEFAULT 'brand'")
+  addFileColumn('inherit_permissions', 'inherit_permissions INTEGER NOT NULL DEFAULT 1')
+  addFileColumn('current_version_id', 'current_version_id TEXT')
+  addFileColumn('trashed_at', 'trashed_at TEXT')
+  addFileColumn('trashed_by', 'trashed_by TEXT REFERENCES users(id) ON DELETE SET NULL')
+  addFileColumn('original_parent_id', 'original_parent_id TEXT')
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS files_brand_parent ON files(brand_id, parent_id, trashed_at);
+    CREATE INDEX IF NOT EXISTS files_brand_updated ON files(brand_id, updated_at DESC);
+  `)
+  const legacyFiles = db.prepare("SELECT id,name,storage_name,mime_type,size,created_at,created_by FROM files WHERE kind='file' AND storage_name IS NOT NULL AND NOT EXISTS (SELECT 1 FROM file_versions WHERE file_id=files.id)").all() as Array<{ id: string; name: string; storage_name: string; mime_type: string | null; size: number; created_at: string; created_by: string | null }>
+  const insertLegacyVersion = db.prepare(`INSERT OR IGNORE INTO file_versions (id,file_id,version_number,storage_backend,storage_key,original_name,mime_type,size,sha256,scan_state,scan_detail,created_by,created_at) VALUES (?,?,1,'legacy',?,?,?,?,?,'available','Legacy file migrated without moving bytes',?,?)`)
+  const markCurrentVersion = db.prepare('UPDATE files SET current_version_id=? WHERE id=? AND current_version_id IS NULL')
+  db.transaction(() => {
+    for (const file of legacyFiles) {
+      const versionId = `ver_legacy_${file.id}`
+      insertLegacyVersion.run(versionId, file.id, file.storage_name, file.name, file.mime_type ?? 'application/octet-stream', file.size, '', file.created_by, file.created_at)
+      markCurrentVersion.run(versionId, file.id)
+    }
+  })()
   const automationStepColumns = db.prepare('PRAGMA table_info(automation_steps)').all() as Array<{ name: string }>
   if (!automationStepColumns.some((column) => column.name === 'channel')) db.exec("ALTER TABLE automation_steps ADD COLUMN channel TEXT NOT NULL DEFAULT 'email'")
   if (!automationStepColumns.some((column) => column.name === 'sender_identity_id')) db.exec('ALTER TABLE automation_steps ADD COLUMN sender_identity_id TEXT')

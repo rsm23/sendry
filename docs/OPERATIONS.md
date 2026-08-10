@@ -11,6 +11,9 @@
 | `DATABASE_PATH`         | `./data/sendry.db`      | Read-only rollback/import source during phased cutover             |
 | `REDIS_URL`             | none                    | BullMQ and Socket.IO Redis connection                              |
 | `UPLOAD_DIR`            | `./data/uploads`        | Local quarantine path                                             |
+| `FILE_LIBRARY_MAX_BYTES` | `104857600`            | Maximum stored File Library upload size (100 MiB)                  |
+| `FILE_CODE_PREVIEW_MAX_BYTES` | `5242880`          | Maximum browser text/code preview size (5 MiB)                     |
+| `FILE_OFFICE_PREVIEW_MAX_BYTES` | `52428800`        | Maximum browser Office preview size (50 MiB)                       |
 | `SESSION_SECRET`        | local development value | Signed-link and session protection; set a random production value |
 | `CREDENTIAL_ENCRYPTION_KEY` | none                | Required production AES-256-GCM provider-secret key               |
 | `OBJECT_STORAGE_*`      | none                    | S3/MinIO endpoint, region, bucket and credentials                  |
@@ -63,6 +66,16 @@ sqlite3 ./data/sendry.db ".backup './backups/sendry-$(date +%Y%m%d-%H%M%S).db'"
 
 Validate recovery in an isolated environment by restoring PostgreSQL, Redis, media objects, and the legacy source, then running migration reconciliation and a stream-provider canary.
 
+### File Library storage and migration
+
+On startup, every legacy SQLite `files` row with local bytes is idempotently represented as immutable version 1. The migration records the existing basename as a `legacy` storage key and does not move or rewrite the byte stream. New uploads pass through `.quarantine`, detected MIME and OOXML/ZIP limit checks, SHA-256 hashing, ClamAV, and then `MediaStorage`; deployments with S3/MinIO credentials use object storage and others use nested local keys under `UPLOAD_DIR`.
+
+Backups must include the SQLite database and every referenced object in `UPLOAD_DIR` or the configured bucket. Keeping only current-version objects is not sufficient: comments may reference old versions and every version is retained until a manager explicitly deletes it. Copies can share an immutable object, so physical deletion occurs only after the final reference is removed. Test restores with a legacy file, a new local/object file, an old version, a copied file, and a campaign attachment.
+
+The File Library accepts scanned non-executable formats independently of the campaign attachment allowlist. Campaign delivery re-checks the brand extension allowlist and resolves the selected file's current immutable version at send time. PE, Mach-O, ELF signatures, malformed OOXML, and ZIP packages outside entry, expanded-size, or compression-ratio limits are rejected.
+
+External links may intentionally be non-expiring or passwordless, but the UI warns before creation. Operational policy should define who may create them, whether expiry/passwords are mandatory, and how access logs are reviewed. Revoke exposed links immediately; tokens are stored only as hashes and cannot be recovered from the database.
+
 ## Delivery providers
 
 The stream transport produces complete MIME messages without opening an external connection. Use it for development, automated tests, and recovery checks.
@@ -114,7 +127,7 @@ Use Settings → API & jobs to inspect the latest jobs and errors.
 - Keep stream mode enabled until a test send succeeds for the selected provider.
 - Verify sender identities, SPF, DKIM, DMARC, and provider feedback delivery.
 - Keep the PayPal environment on sandbox until checkout and capture are confirmed.
-- Back up the database and uploads, then perform a restore test.
+- Back up the database and every versioned local/object-storage file, then perform a restore test.
 - Restrict MinIO/S3 bucket access, require ClamAV, and verify signed URL expiry.
 - Run provider sandbox/canary checks for every enabled brand/channel.
 - Run `pnpm verify` and `pnpm test:e2e` for each release.

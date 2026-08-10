@@ -70,6 +70,30 @@ Duplicate provider event identifiers are acknowledged but not processed twice. `
 
 The public chat/push surface is under `/api/v2/public`. It enforces origin checks, signed visitor sessions, payload limits, and rate limits. The same-origin browser push assets are `/sendry-push.js` and `/sendry-sw.js`.
 
+## Files workspace
+
+Files remain in the authenticated SQLite compatibility domain. All byte access is authorized separately from metadata; `/uploads` is not a public route.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/brands/:brandId/files` | List files using `parentId`, `view`, `q`, `type`, `owner`, `sort`, `direction`, `cursor`, and `limit` |
+| `POST` | `/api/brands/:brandId/files/folder` | Create a folder |
+| `POST` | `/api/brands/:brandId/files/upload` | Quarantine, inspect, scan, and store one or more files |
+| `GET/PATCH/DELETE` | `/api/brands/:brandId/files/:fileId` | Read, update, or soft-delete an item |
+| `GET` | `/api/brands/:brandId/files/:fileId/content` | Serve an authorized current or requested immutable version; supports ranges locally |
+| `POST` | `/api/brands/:brandId/files/bulk` | Move, copy, star, trash, or restore selected items |
+| `GET` | `/api/brands/:brandId/files/bulk/download?ids=` | Stream a ZIP of accessible files |
+| `GET/POST` | `/api/brands/:brandId/files/:fileId/versions` | List versions or upload a new immutable version |
+| `POST` | `/api/brands/:brandId/files/:fileId/versions/:versionId/restore` | Create a new current version from old immutable bytes |
+| `GET/PUT` | `/api/brands/:brandId/files/:fileId/access[/userId]` | Inspect or change member ACLs |
+| `GET/POST` | `/api/brands/:brandId/files/:fileId/comments` | Read or create file-level and version-bound discussions |
+| `GET/POST` | `/api/brands/:brandId/files/:fileId/shares` | List or create external links; the raw token is returned once |
+| `GET` | `/api/brands/:brandId/files/:fileId/activity` | Read file audit events |
+
+Each listed item includes its `effective_role`, current immutable version, star/share state, comment count, `preview_kind`, and a precise `preview_reason` when unsupported. The legacy create/upload/update routes retain their existing paths, while `DELETE` now means soft deletion.
+
+Public link metadata and content use `/api/share/files/:token` and `/api/share/files/:token/content`. Passwords are supplied in `X-Share-Password`, download requests are rejected unless explicitly enabled, folder traversal is restricted to descendants of the shared root, and responses are rate-limited with `noindex`, no-referrer, no-store, and content security headers.
+
 ## Integration routes
 
 | Method | Route | Purpose |

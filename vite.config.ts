@@ -19,7 +19,6 @@ export default defineConfig({
       '/api': 'http://127.0.0.1:4010',
       '/public': 'http://127.0.0.1:4010',
       '/track': 'http://127.0.0.1:4010',
-      '/uploads': 'http://127.0.0.1:4010',
     },
   },
 })

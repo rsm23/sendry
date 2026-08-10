@@ -18,6 +18,7 @@ const AudiencePage = lazy(() => import('@/pages/audience'))
 const AutomationsPage = lazy(() => import('@/pages/automations'))
 const RulesPage = lazy(() => import('@/pages/rules'))
 const FilesPage = lazy(() => import('@/pages/files'))
+const SharedFilePage = lazy(() => import('@/pages/shared-file'))
 const SettingsPage = lazy(() => import('@/pages/settings'))
 const InboxPage = lazy(() => import('@/pages/inbox'))
 const ChannelCampaignPage = lazy(() => import('@/pages/channel-campaign'))
@@ -55,10 +56,12 @@ export default function App() {
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/files" element={<FilesPage />} />
+          <Route path="/files/:fileId" element={<FilesPage />} />
           <Route path="/channels" element={<ChannelsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Route>
         <Route path="/widget/:publicKey" element={<ChatWidgetPage />} />
+        <Route path="/share/files/:token" element={<SharedFilePage />} />
         <Route path="*" element={<Navigate to="/overview" replace />} />
       </Routes>
     </Suspense>

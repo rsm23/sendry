@@ -96,7 +96,11 @@
 ## Operations and integrations
 
 - Reusable templates with source editing, URL import, duplication, preview, and AI generation
-- Brand-scoped folder and file manager with upload, rename, navigation, and recursive cleanup
+- Drive-style brand File workspace with All, Recent, Starred, Shared, and Trash views; recursive search; filters; sorting; grid/list/compact modes; breadcrumbs; drag/drop; keyboard navigation; multi-selection; bulk ZIP, move, copy, star, trash, and restore
+- Immutable file versions with SHA-256 and scan state, legacy byte-preserving version-1 migration, current-version campaign attachments, soft Trash, reference-aware physical cleanup, and local or S3/MinIO storage through `MediaStorage`
+- Viewer/commenter/editor/manager ACLs, default brand visibility, restricted inherited subtrees, external file/folder links with optional expiry/password/download, access logs, rate limits, persistent notifications, and ACL-checked live file rooms
+- Contextual team comments and private notes with replies, resolution, mentions, and version-bound PDF/image regions, Word quotes, slide regions, sheet ranges, and code lines
+- Lazy local browser viewers for PDF, DOCX, XLS/XLSX/CSV/ODS, PPTX, authenticated images/SVG, and UTF-8 text/code; safe metadata/download fallbacks for unsupported, encrypted, malformed, legacy, or oversized files
 - Event rules for subscribe, unsubscribe, campaign start, campaign completion, and automation delivery
 - Webhook, notification email, and audience unsubscribe actions
 - Webhook attempt log with response codes and bodies

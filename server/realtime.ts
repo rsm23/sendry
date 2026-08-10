@@ -6,6 +6,7 @@ import IORedis from 'ioredis'
 import { tokenHash, type AppDatabase } from './db'
 import type { AppConfig } from './config'
 import type { MultiChannelRuntime } from './multichannel/runtime'
+import { userCanAccessFile } from './files'
 
 function cookieValue(cookie: string | undefined, key: string) {
   return cookie?.split(';').map((item) => item.trim().split('=')).find(([name]) => name === key)?.[1]
@@ -45,6 +46,14 @@ export async function createRealtimeServer(server: HttpServer, app: Express, db:
       acknowledge?.({ ok: true })
     })
     socket.on('conversation.join', (conversationId: string) => { if (socket.data.brandId) void socket.join(`conversation:${conversationId}`) })
+    socket.on('file.join', (fileId: string, acknowledge?: (result: { ok: boolean }) => void) => {
+      const allowed = socket.data.kind === 'session' && userCanAccessFile(db, socket.data.userId, fileId)
+      if (!allowed) return acknowledge?.({ ok: false })
+      void socket.join(`file:${fileId}`)
+      socket.to(`file:${fileId}`).emit('file.presence', { fileId, userId: socket.data.userId, state: 'online' })
+      acknowledge?.({ ok: true })
+    })
+    socket.on('file.leave', (fileId: string) => { void socket.leave(`file:${fileId}`) })
     socket.on('visitor.join', (visitorId: string) => void socket.join(`visitor:${visitorId}`))
     socket.on('typing.start', (payload: { conversationId: string }) => socket.to(`conversation:${payload.conversationId}`).emit('typing.started', { ...payload, userId: socket.data.userId }))
     socket.on('typing.stop', (payload: { conversationId: string }) => socket.to(`conversation:${payload.conversationId}`).emit('typing.stopped', { ...payload, userId: socket.data.userId }))

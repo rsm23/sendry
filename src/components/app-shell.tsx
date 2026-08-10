@@ -13,8 +13,7 @@ import {
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { get } from '@/lib/api'
-import { patch } from '@/lib/api'
+import { get, patch, post } from '@/lib/api'
 import { PreferencesMenu } from '@/components/preferences-menu'
 import { useI18n } from '@/i18n/context'
 import { localizeAlert } from '@/lib/alerts'
@@ -22,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { GlobalSearch } from '@/components/global-search'
 
 type NotificationOverview = { alerts: Array<{ id: string; severity: string; title: string; detail: string }>; campaigns: Array<{ id: string; subject: string; status: string; scheduled_at?: string }> }
+type FileNotification = { id: string; kind: string; title: string; detail: string; path: string; read_at: string | null; created_at: string }
 
 const navigation = [
   { label: 'Overview', path: '/overview', icon: Gauge, permission: null },
@@ -44,6 +44,7 @@ export function AppShell() {
   const [searchOpen, setSearchOpen] = useState(false)
   const searchShortcut = /Mac|iPhone|iPad|iPod/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'
   const notifications = useQuery({ queryKey: ['shell-notifications', brand?.id], queryFn: () => get<NotificationOverview>(`/api/brands/${brand?.id}/overview`), enabled: !!brand, refetchInterval: 60_000 })
+  const fileNotifications = useQuery({ queryKey: ['shell-file-notifications', brand?.id], queryFn: () => get<FileNotification[]>(`/api/brands/${brand?.id}/files/notifications`), enabled: !!brand, refetchInterval: 30_000 })
   const permissions = useMemo(() => (brand?.permissions as string[] | undefined) ?? [], [brand?.permissions])
   const availableNavigation = useMemo(() => navigation.filter((item) => !item.permission || permissions.includes('*') || permissions.includes(item.permission) || (item.permission === 'inbox' && permissions.includes('campaigns')) || (item.permission === 'channels' && permissions.includes('settings'))), [permissions])
   const active = useMemo(() => availableNavigation.find((item) => location.pathname.startsWith(item.path)), [availableNavigation, location.pathname])
@@ -127,7 +128,7 @@ export function AppShell() {
           <div className="hidden items-center gap-2 text-sm sm:flex"><span className="text-muted-foreground" translate="no">{brand?.name}</span><span className="text-muted-foreground/40">/</span><span className="font-medium">{active?.label ?? 'Workspace'}</span></div>
           <button onClick={() => setSearchOpen(true)} className="mx-auto flex h-8 min-w-0 flex-1 max-w-lg items-center gap-2 rounded-lg border bg-card px-3 text-start text-sm text-muted-foreground shadow-none outline-none hover:border-foreground/20 focus-visible:ring-2 focus-visible:ring-ring" aria-label="Search anything in Sendry"><Search className="size-4 shrink-0"/><span className="truncate">Search anything in Sendry…</span><kbd className="ms-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[0.65rem] sm:inline">{searchShortcut}</kbd></button>
           <PreferencesMenu onLocaleChange={(language) => patch('/api/settings/profile', { language })} onThemeChange={(theme) => patch('/api/settings/profile', { theme })} />
-          <DropdownMenu><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length ? <span className="absolute mt-[-18px] ms-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{notifications.data?.alerts.map((alert) => { const copy = localizeAlert(alert, t); return <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{copy.title}</strong><span className="block text-xs text-muted-foreground">{copy.detail}</span></span></DropdownMenuItem> })}{!notifications.data?.alerts.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+          <DropdownMenu onOpenChange={(open) => { if (open && brand && fileNotifications.data?.some((item) => !item.read_at)) void post(`/api/brands/${brand.id}/files/notifications/read`).then(() => fileNotifications.refetch()) }}><DropdownMenuTrigger render={<Button size="icon-sm" variant="ghost" aria-label="Notifications"/>}><Bell/>{notifications.data?.alerts.length || fileNotifications.data?.some((item) => !item.read_at) ? <span className="absolute mt-[-18px] ms-[18px] size-2 rounded-full bg-primary"/> : null}</DropdownMenuTrigger><DropdownMenuContent align="end" className="w-80"><DropdownMenuGroup><DropdownMenuLabel>Notifications</DropdownMenuLabel><DropdownMenuSeparator/>{fileNotifications.data?.slice(0, 8).map((item) => <DropdownMenuItem key={item.id} className="items-start py-2" onClick={() => navigate(item.path || '/files')}><span className={cn('mt-1 size-2 shrink-0 rounded-full', item.read_at ? 'bg-muted-foreground/30' : 'bg-primary')}/><span><strong className="block text-sm">{item.title}</strong><span className="block text-xs text-muted-foreground">{item.detail}</span></span></DropdownMenuItem>)}{notifications.data?.alerts.map((alert) => { const copy = localizeAlert(alert, t); return <DropdownMenuItem key={alert.id} className="items-start py-2" onClick={() => navigate('/overview')}><span className="mt-1 size-2 shrink-0 rounded-full bg-amber-500"/><span><strong className="block text-sm">{copy.title}</strong><span className="block text-xs text-muted-foreground">{copy.detail}</span></span></DropdownMenuItem> })}{!notifications.data?.alerts.length && !fileNotifications.data?.length && <DropdownMenuItem disabled>No active alerts</DropdownMenuItem>}</DropdownMenuGroup><DropdownMenuSeparator/><DropdownMenuGroup><DropdownMenuItem onClick={() => navigate('/files?view=shared')}>View file activity</DropdownMenuItem><DropdownMenuItem onClick={() => navigate('/campaigns')}>View delivery activity</DropdownMenuItem></DropdownMenuGroup></DropdownMenuContent></DropdownMenu>
           {can('campaigns') && <Button size="sm" onClick={() => navigate('/campaigns/new')} className="hidden sm:inline-flex"><Plus/> Create campaign</Button>}
         </header>
         <main className={cn("min-w-0", builderMode ? "h-svh overflow-hidden" : "page-gutter")}><Outlet/></main>

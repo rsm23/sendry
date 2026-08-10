@@ -62,6 +62,7 @@ import {
 import { signToken, verifyToken } from "./tokens";
 import { createMultiChannelRuntime } from "./multichannel/factory";
 import { createMultiChannelRouter, createPublicChannelRouter, createWebhookRouter } from "./multichannel/routes";
+import { createFilesRouter, createPublicFileShareRouter } from "./files";
 
 type CreateOptions = {
   db?: AppDatabase;
@@ -745,11 +746,9 @@ export function createApp(options: CreateOptions = {}) {
   app.use(createWebhookRouter(db, multiChannel, config));
   app.use(express.json({ limit: "4mb" }));
   app.use(express.urlencoded({ extended: true, limit: "4mb" }));
-  app.use(
-    "/uploads",
-    express.static(config.uploadDir, { fallthrough: false, maxAge: "1d" }),
-  );
   app.use(authMiddleware(db, config));
+  app.use("/api/share/files", createPublicFileShareRouter(db, config));
+  app.use("/api/brands/:brandId/files", createFilesRouter(db, config));
   app.use("/api/v2/public", createPublicChannelRouter(db, multiChannel, config));
   app.use("/api/v2", createMultiChannelRouter(db, multiChannel, config));
 

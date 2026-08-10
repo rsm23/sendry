@@ -10,6 +10,7 @@ import { signToken } from './tokens'
 import type { MultiChannelRuntime } from './multichannel/runtime'
 import { consentAllows } from './multichannel/compliance'
 import type { CampaignChannel, ChannelContent, MessagePurpose } from './multichannel/types'
+import { MediaStorage } from './multichannel/storage'
 
 type Job = { id: string; type: string; payload: string; attempts: number; max_attempts: number }
 
@@ -132,8 +133,13 @@ async function processCampaign(db: AppDatabase, config: AppConfig, campaignId: s
     : config.appUrl
   const recipients = campaignRecipients(db, campaignId)
   const attachmentIds = JSON.parse(String(campaign.attachments ?? '[]')) as string[]
-  const attachmentRows = attachmentIds.length ? db.prepare(`SELECT name,storage_name FROM files WHERE brand_id=? AND kind='file' AND id IN (${attachmentIds.map(() => '?').join(',')})`).all(brand.id, ...attachmentIds) as Array<{ name: string; storage_name: string }> : []
-  const attachments = attachmentRows.map((file) => ({ filename: file.name, path: join(config.uploadDir, basename(file.storage_name)) }))
+  const attachmentRows = attachmentIds.length ? db.prepare(`SELECT f.name,v.storage_backend,v.storage_key FROM files f JOIN file_versions v ON v.id=f.current_version_id WHERE f.brand_id=? AND f.kind='file' AND f.trashed_at IS NULL AND f.id IN (${attachmentIds.map(() => '?').join(',')})`).all(brand.id, ...attachmentIds) as Array<{ name: string; storage_backend: string; storage_key: string }> : []
+  const allowedAttachmentExtensions = new Set((JSON.parse(String(brand.allowed_attachments ?? '[]')) as string[]).map((value) => `.${value.toLowerCase().replace(/^\./, '')}`))
+  const mediaStorage = new MediaStorage(config)
+  const attachments = await Promise.all(attachmentRows.filter((file) => allowedAttachmentExtensions.has(file.name.slice(file.name.lastIndexOf('.')).toLowerCase())).map(async (file) => ({
+    filename: file.name,
+    path: file.storage_backend === 'object' ? await mediaStorage.signedDownload(file.storage_key) : file.storage_backend === 'legacy' ? join(config.uploadDir, basename(file.storage_key)) : mediaStorage.localPath(file.storage_key),
+  })))
   const remaining = Number(brand.monthly_limit) < 0 ? Number.POSITIVE_INFINITY : Math.max(0, Number(brand.monthly_limit) - Number(brand.current_usage))
   if (recipients.length > remaining) throw new Error(`Monthly allowance has ${remaining} messages remaining`)
   db.prepare(`UPDATE campaigns SET status='sending',started_at=COALESCE(started_at,?),total_recipients=?,error=NULL,updated_at=? WHERE id=?`).run(nowIso(), recipients.length, nowIso(), campaignId)

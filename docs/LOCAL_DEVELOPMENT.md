@@ -34,6 +34,8 @@ The seed covers both data stores because Sendry is in a staged database transiti
 
 The local stream provider exercises delivery code without sending messages to real recipients.
 
+The File Library uses MinIO and ClamAV from the same development stack. Its defaults are 100 MiB per stored file, 50 MiB for browser Office previews, and 5 MiB for text/code previews. These are configured with `FILE_LIBRARY_MAX_BYTES`, `FILE_OFFICE_PREVIEW_MAX_BYTES`, and `FILE_CODE_PREVIEW_MAX_BYTES`. File Library policy is deliberately broader than `allowed_attachments`, which is applied again when a campaign sends.
+
 ## Everyday startup
 
 The Docker volumes and SQLite file retain data between runs. After the first setup:
@@ -123,6 +125,10 @@ Service endpoints used by host development:
 | ClamAV | `127.0.0.1:3310` |
 
 If a host port is already in use, override `POSTGRES_PORT`, `REDIS_PORT`, `MINIO_API_PORT`, or `CLAMAV_PORT` for Docker and update the corresponding URL in `.env`.
+
+For viewer work, use real benign PDF, DOCX, XLSX, PPTX, image, JSON/XML, and source-code fixtures. Also verify an unsupported legacy `.doc`/`.ppt`, an oversized preview, malformed OOXML, an executable signature with a misleading extension, and a password-protected PDF. Office parsing occurs only after opening a file and runs in dedicated lazy worker chunks; it must not increase the initial Files route chunk.
+
+The seeded account is a brand owner and therefore a Files manager. Test viewer, commenter, editor, restricted inheritance, external-link download-off, Trash restoration, and unauthorized `/uploads/...` access with purpose-built members or API tests rather than weakening the seed permissions.
 
 ## Resetting local data
 

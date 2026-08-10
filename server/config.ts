@@ -6,6 +6,9 @@ export type AppConfig = {
   appUrl: string
   databasePath: string
   uploadDir: string
+  fileLibraryMaxBytes: number
+  fileCodePreviewMaxBytes: number
+  fileOfficePreviewMaxBytes: number
   sessionSecret: string
   mailTransport: 'stream' | 'smtp' | 'ses'
   openaiApiKey?: string
@@ -36,6 +39,9 @@ export function getConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     appUrl: process.env.APP_URL ?? 'http://localhost:5173',
     databasePath: process.env.DATABASE_PATH ?? './data/sendry.db',
     uploadDir: resolve(process.env.UPLOAD_DIR ?? './data/uploads'),
+    fileLibraryMaxBytes: Number(process.env.FILE_LIBRARY_MAX_BYTES ?? 100 * 1024 * 1024),
+    fileCodePreviewMaxBytes: Number(process.env.FILE_CODE_PREVIEW_MAX_BYTES ?? 5 * 1024 * 1024),
+    fileOfficePreviewMaxBytes: Number(process.env.FILE_OFFICE_PREVIEW_MAX_BYTES ?? 50 * 1024 * 1024),
     sessionSecret: process.env.SESSION_SECRET ?? 'sendry-local-session-secret-change-before-deployment',
     mailTransport: (process.env.MAIL_TRANSPORT as AppConfig['mailTransport']) ?? 'stream',
     openaiApiKey: process.env.OPENAI_API_KEY || undefined,

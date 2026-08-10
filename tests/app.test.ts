@@ -158,6 +158,121 @@ describe("Sendry API", () => {
     );
   });
 
+  it("manages secure versioned files, collaboration, links, and Trash", async () => {
+    await request(app).get("/uploads/unprotected.txt").expect(404);
+
+    const rejected = await agent
+      .post("/api/brands/brd_atlas/files/upload")
+      .attach("files", Buffer.from("MZmisleading executable"), {
+        filename: "malware.pdf",
+        contentType: "application/pdf",
+      })
+      .expect(422);
+    expect(rejected.body.error).toMatch(/Executable/);
+
+    const uploaded = await agent
+      .post("/api/brands/brd_atlas/files/upload")
+      .attach("files", Buffer.from("hello secure workspace"), {
+        filename: "workspace.txt",
+        contentType: "text/plain",
+      })
+      .expect(201);
+    expect(uploaded.body).toHaveLength(1);
+    const file = uploaded.body[0] as {
+      id: string;
+      current_version: { id: string; version_number: number; sha256: string };
+      effective_role: string;
+      preview_kind: string;
+    };
+    expect(file).toMatchObject({ effective_role: "manager", preview_kind: "code" });
+    expect(file.current_version.version_number).toBe(1);
+    expect(file.current_version.sha256).toHaveLength(64);
+
+    const uploadedVideo = await agent
+      .post("/api/brands/brd_atlas/files/upload")
+      .attach("files", Buffer.from("browser video fixture"), {
+        filename: "screen-recording.mov",
+        contentType: "video/quicktime",
+      })
+      .expect(201);
+    expect(uploadedVideo.body[0]).toMatchObject({
+      preview_kind: "video",
+      current_version: { mime_type: "video/quicktime" },
+    });
+
+    const range = await agent
+      .get(`/api/brands/brd_atlas/files/${file.id}/content`)
+      .set("Range", "bytes=0-4")
+      .expect(206);
+    expect(range.headers["accept-ranges"]).toBe("bytes");
+
+    await agent
+      .patch(`/api/brands/brd_atlas/files/${file.id}`)
+      .send({ starred: true, description: "Release notes" })
+      .expect(200);
+    const starred = await agent
+      .get("/api/brands/brd_atlas/files?view=starred")
+      .expect(200);
+    expect(starred.body).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: file.id, starred: true })]),
+    );
+
+    const comment = await agent
+      .post(`/api/brands/brd_atlas/files/${file.id}/comments`)
+      .send({
+        body: "Review line one",
+        version_id: file.current_version.id,
+        anchor: { kind: "code", from_line: 1, to_line: 1 },
+        mention_ids: [],
+      })
+      .expect(201);
+    expect(comment.body.anchor).toContain('"kind":"code"');
+
+    await agent
+      .post(`/api/brands/brd_atlas/files/${file.id}/versions`)
+      .attach("file", Buffer.from("hello secure workspace version two"), {
+        filename: "workspace.txt",
+        contentType: "text/plain",
+      })
+      .expect(201);
+    await agent
+      .post(`/api/brands/brd_atlas/files/${file.id}/versions/${file.current_version.id}/restore`)
+      .expect(201);
+    const versions = await agent
+      .get(`/api/brands/brd_atlas/files/${file.id}/versions`)
+      .expect(200);
+    expect(versions.body.map((version: { version_number: number }) => version.version_number)).toEqual([3, 2, 1]);
+
+    const shared = await agent
+      .post(`/api/brands/brd_atlas/files/${file.id}/shares`)
+      .send({ allow_download: false, expires_at: null })
+      .expect(201);
+    expect(shared.body.token).toBeTruthy();
+    const publicMetadata = await request(app)
+      .get(`/api/share/files/${shared.body.token}`)
+      .expect(200);
+    expect(publicMetadata.body).toMatchObject({ id: file.id, allow_download: false, unlocked: true });
+    await request(app)
+      .get(`/api/share/files/${shared.body.token}/content`)
+      .expect(200);
+    await request(app)
+      .get(`/api/share/files/${shared.body.token}/content?download=1`)
+      .expect(403);
+
+    await agent.delete(`/api/brands/brd_atlas/files/${file.id}`).expect(204);
+    const trash = await agent
+      .get("/api/brands/brd_atlas/files?view=trash")
+      .expect(200);
+    expect(trash.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: file.id })]));
+    await agent
+      .post(`/api/brands/brd_atlas/files/${file.id}/restore`)
+      .expect(200);
+    const restored = await agent
+      .get(`/api/brands/brd_atlas/files/${file.id}`)
+      .expect(200);
+    expect(restored.body.trashed_at).toBeNull();
+  });
+
   it("does not reuse an AI key when the provider changes", async () => {
     await agent
       .patch("/api/brands/brd_atlas")
