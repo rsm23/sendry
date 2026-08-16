@@ -1,0 +1,126 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - generic [ref=f2e13]:
+      - main [ref=f2e109]:
+        - main [ref=f2e110]:
+          - generic [ref=f2e111]:
+            - generic [ref=f2e112]:
+              - button [ref=f2e4354] [cursor=pointer]
+              - textbox [ref=f2e4355]: Visual inspector QA
+              - button [ref=f2e4356] [cursor=pointer]
+              - button [ref=f2e4357] [cursor=pointer]
+              - button [ref=f2e4358] [cursor=pointer]
+            - generic [ref=f2e4261]:
+              - button [ref=f2e4359] [cursor=pointer]: Steps
+              - tablist [ref=f2e4264]:
+                - tab [selected] [ref=f2e4360] [cursor=pointer]: Canvas
+                - tab [ref=f2e4361] [cursor=pointer]: Outline
+              - button [ref=f2e4362] [cursor=pointer]: Inspector
+            - application [ref=f2e4269]:
+              - generic [ref=f2e4271]:
+                - generic:
+                  - generic:
+                    - group [ref=f2e4272]:
+                      - generic [ref=f2e4273]:
+                        - generic [ref=f2e4280]:
+                          - paragraph [ref=f2e4281]: Start
+                          - paragraph [ref=f2e4282]: participant
+                        - generic [ref=f2e4290]: Participant step
+                    - group [ref=f2e4293]:
+                      - generic [ref=f2e4294]:
+                        - generic [ref=f2e4301]:
+                          - paragraph [ref=f2e4302]: End
+                          - paragraph [ref=f2e4303]: participant
+                        - generic [ref=f2e4311]: Participant step
+                    - group [ref=f2e4314]:
+                      - generic [ref=f2e4315]:
+                        - generic [ref=f2e4322]:
+                          - paragraph [ref=f2e4323]: Form
+                          - paragraph [ref=f2e4324]: participant
+                        - generic [ref=f2e4332]: Participant step
+              - generic [ref=f2e4363]:
+                - button [ref=f2e4364] [cursor=pointer]
+                - button [ref=f2e4365] [cursor=pointer]
+                - button [ref=f2e4366] [cursor=pointer]
+                - button [ref=f2e4367] [cursor=pointer]
+      - generic [ref=f2e4133]:
+        - heading [level=2] [ref=f2e4369]: Search Sendry
+        - paragraph [ref=f2e4135]: Search settings, campaigns, templates, people, files, and more.
+    - region "Notifications alt+T"
+  - dialog [ref=f2e4373]:
+    - generic [ref=f2e4374]:
+      - heading "Step inspector" [level=2] [ref=f2e4375]
+      - paragraph [ref=f2e4376]: Edit the selected workflow step.
+    - generic [ref=f2e4379]:
+      - generic [ref=f2e4380]:
+        - generic [ref=f2e4381]: participant
+        - paragraph [ref=f2e4382]: form
+      - group [ref=f2e4383]:
+        - generic [ref=f2e4384]: Step label
+        - textbox [active] [ref=f2e4385]: Form
+      - generic [ref=f2e4390]:
+        - paragraph [ref=f2e4391]: Step configuration
+        - paragraph [ref=f2e4392]: Settings are saved in this workflow draft.
+      - generic [ref=f2e4393]:
+        - group [ref=f2e4394]:
+          - generic [ref=f2e4395]: Form title
+          - textbox "Form title" [ref=f2e4396]: Your information
+        - group [ref=f2e4397]:
+          - generic [ref=f2e4398]: Description
+          - textbox "Description" [ref=f2e4399]: Complete the fields below.
+        - group [ref=f2e4400]:
+          - generic [ref=f2e4401]: Submit button label
+          - textbox "Submit button label" [ref=f2e4402]: Continue
+        - generic [ref=f2e4403]:
+          - generic [ref=f2e4404]:
+            - heading "Form builder" [level=3] [ref=f2e4405]
+            - paragraph [ref=f2e4406]: Drag fields into the form, or use Add for keyboard access.
+          - generic [ref=f2e4407]:
+            - generic [ref=f2e4408]:
+              - paragraph [ref=f2e4409]: Fields
+              - generic [ref=f2e4410]:
+                - button "Short text" [ref=f2e4411] [cursor=pointer]
+                - button "Long text" [ref=f2e4413] [cursor=pointer]
+                - button "Email" [ref=f2e4415] [cursor=pointer]
+                - button "Phone" [ref=f2e4417] [cursor=pointer]
+                - button "Number" [ref=f2e4419] [cursor=pointer]
+                - button "Dropdown" [ref=f2e4421] [cursor=pointer]
+                - button "Radio group" [ref=f2e4423] [cursor=pointer]
+                - button "Checkbox" [ref=f2e4425] [cursor=pointer]
+                - button "File upload" [ref=f2e4427] [cursor=pointer]
+                - button "Content" [ref=f2e4429] [cursor=pointer]
+            - generic [ref=f2e4431]:
+              - paragraph [ref=f2e4433]: Participant form
+              - generic [ref=f2e4435]:
+                - button "Customer reference textfield · Required" [ref=f2e4443] [cursor=pointer]:
+                  - generic [ref=f2e4444]:
+                    - generic [ref=f2e4445]: Customer reference
+                    - generic [ref=f2e4446]: textfield · Required
+                - button "Move field up" [disabled]
+                - button "Move field down" [disabled]
+          - generic [ref=f2e4447]:
+            - generic [ref=f2e4448]:
+              - generic [ref=f2e4449]:
+                - paragraph [ref=f2e4450]: Field settings
+                - paragraph [ref=f2e4451]: customer_reference
+              - button "Delete form field" [ref=f2e4452] [cursor=pointer]
+            - generic [ref=f2e4453]:
+              - group [ref=f2e4454]:
+                - generic [ref=f2e4455]: Label
+                - textbox "Label" [ref=f2e4456]: Customer reference
+              - group [ref=f2e4457]:
+                - generic [ref=f2e4458]: Field key
+                - textbox "Field key" [ref=f2e4459]: customer_reference
+                - paragraph [ref=f2e4460]: Used in workflow bindings.
+            - group [ref=f2e4461]:
+              - generic [ref=f2e4462]: Placeholder
+              - textbox "Placeholder" [ref=f2e4463]
+            - group [ref=f2e4464]:
+              - generic [ref=f2e4465]: Help text
+              - textbox "Help text" [ref=f2e4466]
+            - group [ref=f2e4467]:
+              - generic [ref=f2e4468]: Required field
+              - switch "Required field" [checked] [ref=f2e4469]
+              - checkbox [checked] [ref=f2e4470]
+      - button "Delete step" [ref=f2e4471] [cursor=pointer]
+    - button "Close" [ref=f2e4474] [cursor=pointer]

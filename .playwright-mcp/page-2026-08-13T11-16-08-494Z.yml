@@ -1,0 +1,132 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e13]:
+    - main [ref=f1e109]:
+      - main [ref=f1e110]:
+        - generic [ref=f1e111]:
+          - generic [ref=f1e112]:
+            - button "Back to workflows" [ref=f1e4799] [cursor=pointer]
+            - textbox "Workflow name" [ref=f1e4800]: Configuration visual QA
+            - button "Appearance and language" [expanded] [ref=f1e4801] [cursor=pointer]
+            - menu "Appearance and language" [active] [ref=f1e4814]:
+              - group "Language" [ref=f1e4815]:
+                - text: Language
+                - group [ref=f1e4816]:
+                  - menuitemradio "English" [checked] [ref=f1e4817]
+                  - menuitemradio "Français" [ref=f1e4819]
+                  - menuitemradio "Español" [ref=f1e4821]
+                  - menuitemradio "العربية" [ref=f1e4823]
+              - separator [ref=f1e4825]
+              - group "Theme" [ref=f1e4826]:
+                - text: Theme
+                - group [ref=f1e4827]:
+                  - menuitemradio "System" [ref=f1e4828]
+                  - menuitemradio "Light" [ref=f1e4829]
+                  - menuitemradio "Dark" [checked] [ref=f1e4830]
+            - button "Validate" [ref=f1e4802] [cursor=pointer]
+            - button "Test" [ref=f1e4803] [cursor=pointer]
+            - button "Publish" [ref=f1e4804] [cursor=pointer]
+          - generic [ref=f1e4482]:
+            - button "Steps" [ref=f1e4805] [cursor=pointer]
+            - tablist [ref=f1e4485]:
+              - tab "Canvas" [selected] [ref=f1e4806] [cursor=pointer]
+              - tab "Outline" [ref=f1e4807] [cursor=pointer]
+            - button "Inspector" [ref=f1e4808] [cursor=pointer]
+          - application [ref=f1e4490]:
+            - generic [ref=f1e4492]:
+              - generic:
+                - generic:
+                  - img:
+                    - group "Edge from start to end"
+                - generic:
+                  - group [ref=f1e4493]:
+                    - generic [ref=f1e4494]:
+                      - generic [ref=f1e4501]:
+                        - paragraph [ref=f1e4502]: Start
+                        - paragraph [ref=f1e4503]: participant
+                      - generic [ref=f1e4511]: Participant step
+                  - group [ref=f1e4514]:
+                    - generic [ref=f1e4515]:
+                      - generic [ref=f1e4522]:
+                        - paragraph [ref=f1e4523]: Form
+                        - paragraph [ref=f1e4524]: participant
+                      - generic [ref=f1e4532]: Participant step
+                  - group [ref=f1e4535]:
+                    - generic [ref=f1e4536]:
+                      - generic [ref=f1e4543]:
+                        - paragraph [ref=f1e4544]: Upload
+                        - paragraph [ref=f1e4545]: participant
+                      - generic [ref=f1e4553]: Participant step
+                  - group [ref=f1e4556]:
+                    - generic [ref=f1e4557]:
+                      - generic [ref=f1e4564]:
+                        - paragraph [ref=f1e4565]: Excel To Pdf
+                        - paragraph [ref=f1e4566]: action
+                      - generic [ref=f1e4574]:
+                        - generic [ref=f1e4575]: Runs in worker
+                        - generic [ref=f1e4576]: excel-to-pdf
+                  - group [ref=f1e4579]:
+                    - generic [ref=f1e4580]:
+                      - generic [ref=f1e4587]:
+                        - paragraph [ref=f1e4588]: Form
+                        - paragraph [ref=f1e4589]: participant
+                      - generic [ref=f1e4597]: Participant step
+                  - group [ref=f1e4600]:
+                    - generic [ref=f1e4601]:
+                      - generic [ref=f1e4608]:
+                        - paragraph [ref=f1e4609]: Upload
+                        - paragraph [ref=f1e4610]: participant
+                      - generic [ref=f1e4618]: Participant step
+                  - group [ref=f1e4621]:
+                    - generic [ref=f1e4622]:
+                      - generic [ref=f1e4629]:
+                        - paragraph [ref=f1e4630]: Base64 To File
+                        - paragraph [ref=f1e4631]: action
+                      - generic [ref=f1e4639]:
+                        - generic [ref=f1e4640]: Runs in worker
+                        - generic [ref=f1e4641]: base64-to-file
+                  - group [ref=f1e4644]:
+                    - generic [ref=f1e4645]:
+                      - generic [ref=f1e4652]:
+                        - paragraph [ref=f1e4653]: Form
+                        - paragraph [ref=f1e4654]: participant
+                      - generic [ref=f1e4662]: Participant step
+                  - group [ref=f1e4665]:
+                    - generic [ref=f1e4666]:
+                      - generic [ref=f1e4673]:
+                        - paragraph [ref=f1e4674]: Form
+                        - paragraph [ref=f1e4675]: participant
+                      - generic [ref=f1e4683]: Participant step
+                  - group [ref=f1e4686]:
+                    - generic [ref=f1e4687]:
+                      - generic [ref=f1e4694]:
+                        - paragraph [ref=f1e4695]: Form
+                        - paragraph [ref=f1e4696]: participant
+                      - generic [ref=f1e4704]: Participant step
+                  - group [ref=f1e4707]:
+                    - generic [ref=f1e4708]:
+                      - generic [ref=f1e4715]:
+                        - paragraph [ref=f1e4716]: Form
+                        - paragraph [ref=f1e4717]: participant
+                      - generic [ref=f1e4725]: Participant step
+                  - group [ref=f1e4728]:
+                    - generic [ref=f1e4729]:
+                      - generic [ref=f1e4736]:
+                        - paragraph [ref=f1e4737]: Form
+                        - paragraph [ref=f1e4738]: participant
+                      - generic [ref=f1e4746]: Participant step
+                  - group [ref=f1e4749]:
+                    - generic [ref=f1e4750]:
+                      - generic [ref=f1e4757]:
+                        - paragraph [ref=f1e4758]: End
+                        - paragraph [ref=f1e4759]: participant
+                      - generic [ref=f1e4767]: Participant step
+            - generic "Control Panel" [ref=f1e4770]:
+              - button "Zoom In" [ref=f1e4771] [cursor=pointer]
+              - button "Zoom Out" [ref=f1e4774] [cursor=pointer]
+              - button "Fit View" [ref=f1e4777] [cursor=pointer]
+              - button "Toggle Interactivity" [ref=f1e4780] [cursor=pointer]
+            - img "Mini Map" [ref=f1e4784]
+    - generic [ref=f1e4383]:
+      - heading "Search Sendry" [level=2] [ref=f1e4809]
+      - paragraph [ref=f1e4385]: Search settings, campaigns, templates, people, files, and more.
+  - region "Notifications alt+T"

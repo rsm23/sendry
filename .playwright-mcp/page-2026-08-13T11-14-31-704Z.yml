@@ -1,0 +1,40 @@
+- generic [ref=e2]:
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e6]: Sendry
+      - generic [ref=e11]:
+        - paragraph [ref=e12]: Self-hosted delivery workspace
+        - heading "Campaign operations without the blind spots." [level=1] [ref=e13]
+        - paragraph [ref=e14]: Compose, deliver, automate, and understand every email from one auditable workspace.
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - paragraph [ref=e17]: 99.2%
+            - paragraph [ref=e18]: Deliverability
+          - generic [ref=e19]:
+            - paragraph [ref=e20]: 14/s
+            - paragraph [ref=e21]: Current rate
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: 42k
+            - paragraph [ref=e24]: Daily capacity
+      - generic [ref=e25]: Credentials and audience data remain on your infrastructure.
+    - generic [ref=e29]:
+      - button "Appearance and language" [ref=e30] [cursor=pointer]
+      - generic [ref=e31]:
+        - generic [ref=e32]:
+          - generic [ref=e33]: Welcome back
+          - generic [ref=e34]: Sign in to manage campaigns, audiences, and delivery.
+        - generic [ref=e35]:
+          - generic [ref=e37]:
+            - group [ref=e38]:
+              - generic [ref=e39]: Email address
+              - textbox "Email address" [ref=e40]: qa@sendry.local
+            - group [ref=e41]:
+              - generic [ref=e42]:
+                - generic [ref=e43]: Password
+                - button "Forgot password?" [ref=e44] [cursor=pointer]
+              - textbox "Password" [ref=e45]: TestPass123!
+            - button "Sign in" [ref=e46] [cursor=pointer]
+            - generic [ref=e47]: or
+            - button "Sign in with a passkey" [ref=e48] [cursor=pointer]
+          - paragraph [ref=e49]: "Local QA: qa@sendry.local / TestPass123!"
+  - region "Notifications alt+T"
