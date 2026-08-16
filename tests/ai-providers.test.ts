@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   completeWithAiProvider,
   discoverLocalAiModels,
+  embedWithAiProvider,
+  streamWithAiProvider,
 } from "../server/ai-providers";
 
 afterEach(() => {
@@ -104,5 +106,24 @@ describe("AI providers", () => {
       discoverLocalAiModels("ollama", "https://8.8.8.8"),
     ).rejects.toThrow("loopback or private network");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("embeds bounded batches through compatible and Ollama endpoints", async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ embedding: [1, 0, 0] }, { embedding: [0, 1, 0] }] }), { status: 200, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ embeddings: [[0, 0, 1]] }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(embedWithAiProvider({ provider: "openai", model: "text-embedding-3-small", apiKey: "write-only", baseUrl: "https://embedding.example.test/v1" }, ["one", "two"])).resolves.toEqual([[1, 0, 0], [0, 1, 0]]);
+    await expect(embedWithAiProvider({ provider: "ollama", model: "nomic-embed-text", baseUrl: "http://127.0.0.1:11434" }, ["local"])).resolves.toEqual([[0, 0, 1]]);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://embedding.example.test/v1/embeddings");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:11434/api/embed");
+    await expect(embedWithAiProvider({ provider: "anthropic", model: "unsupported", apiKey: "secret" }, ["text"])).rejects.toThrow("does not expose an embeddings API");
+  });
+
+  it("yields compatible response deltas without exposing provider metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockResolvedValue(new Response('data: {"choices":[{"delta":{"content":"Grounded "}}]}\n\ndata: {"choices":[{"delta":{"content":"answer"}}]}\n\ndata: [DONE]\n\n', { status: 200, headers: { "content-type": "text/event-stream" } })));
+    const parts: string[] = [];
+    for await (const part of streamWithAiProvider({ provider: "openai", model: "gpt-test", apiKey: "secret" }, "Use evidence.", "Question")) parts.push(part);
+    expect(parts).toEqual(["Grounded ", "answer"]);
   });
 });

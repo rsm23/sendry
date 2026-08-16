@@ -33,6 +33,7 @@ import { number, relative, shortDate } from "@/lib/format";
 import { localeCodes, locales } from "@/i18n/catalog";
 import { PageHeader } from "@/components/page-header";
 import { AiProviderSettings } from "@/components/ai-provider-settings";
+import { EmbeddingProviderSettings } from "@/components/embedding-provider-settings";
 import { StatusBadge } from "@/components/status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -881,6 +882,15 @@ export default function SettingsPage() {
                   });
                   await refresh();
                   toast.success("Brand AI key removed");
+                }}
+              />
+              <EmbeddingProviderSettings
+                value={brandValue}
+                onChange={setBrandValue}
+                onRemoveKey={async () => {
+                  await patch(`/api/brands/${brandValue.id}`, { clear_ai_embedding_api_key: true });
+                  await refresh();
+                  toast.success("Brand embedding key removed");
                 }}
               />
             </SettingsCard>

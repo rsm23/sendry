@@ -63,6 +63,8 @@ import { signToken, verifyToken } from "./tokens";
 import { createMultiChannelRuntime } from "./multichannel/factory";
 import { createMultiChannelRouter, createPublicChannelRouter, createWebhookRouter } from "./multichannel/routes";
 import { createFilesRouter, createPublicFileShareRouter } from "./files";
+import { createKnowledgeAgent } from "./knowledge/agent";
+import { createKnowledgeRouter } from "./knowledge/routes";
 
 type CreateOptions = {
   db?: AppDatabase;
@@ -320,10 +322,12 @@ function withoutBrandSecrets(
     !storedAiKeyConfigured &&
     row.ai_provider === "openai" &&
     deploymentOpenAiKeyConfigured;
+  row.ai_embedding_api_key_configured = Boolean(row.ai_embedding_encrypted_api_key);
   row.openai_api_key_configured = storedAiKeyConfigured;
   row.recaptcha_secret_key_configured = Boolean(row.recaptcha_secret_key);
   delete row.ai_api_key;
   delete row.ai_encrypted_api_key;
+  delete row.ai_embedding_encrypted_api_key;
   delete row.openai_api_key;
   delete row.recaptcha_secret_key;
   const provider =
@@ -727,6 +731,7 @@ export function createApp(options: CreateOptions = {}) {
   const config = getConfig(options.config);
   const db = options.db ?? createDatabase(config.databasePath);
   const multiChannel = createMultiChannelRuntime(db, config);
+  const knowledgeAgent = createKnowledgeAgent(db, config, multiChannel);
   mkdirSync(config.uploadDir, { recursive: true });
   const upload = multer({
     dest: config.uploadDir,
@@ -748,9 +753,10 @@ export function createApp(options: CreateOptions = {}) {
   app.use(express.urlencoded({ extended: true, limit: "4mb" }));
   app.use(authMiddleware(db, config));
   app.use("/api/share/files", createPublicFileShareRouter(db, config));
-  app.use("/api/brands/:brandId/files", createFilesRouter(db, config));
-  app.use("/api/v2/public", createPublicChannelRouter(db, multiChannel, config));
-  app.use("/api/v2", createMultiChannelRouter(db, multiChannel, config));
+  app.use("/api/brands/:brandId/files", createFilesRouter(db, config, knowledgeAgent));
+  app.use("/api/v2/public", createPublicChannelRouter(db, multiChannel, config, knowledgeAgent));
+  app.use("/api/v2", createKnowledgeRouter(db, knowledgeAgent));
+  app.use("/api/v2", createMultiChannelRouter(db, multiChannel, config, knowledgeAgent));
 
   app.get("/api/setup/status", (_request, response) =>
     response.json({
@@ -1622,6 +1628,10 @@ export function createApp(options: CreateOptions = {}) {
         values.ai_provider === undefined
           ? String(current.ai_provider || "")
           : String(values.ai_provider || "");
+      const requestedEmbeddingProvider =
+        values.ai_embedding_provider === undefined
+          ? String(current.ai_embedding_provider || "")
+          : String(values.ai_embedding_provider || "");
       const aiSettingsResult = z
         .object({
           ai_provider: z.enum(AI_PROVIDER_IDS).or(z.literal("")).optional(),
@@ -1635,6 +1645,15 @@ export function createApp(options: CreateOptions = {}) {
           openai_api_key: z.string().trim().max(8_192).optional(),
           clear_ai_api_key: z.boolean().optional(),
           clear_openai_api_key: z.boolean().optional(),
+          ai_embedding_provider: z.enum(AI_PROVIDER_IDS).or(z.literal("")).optional(),
+          ai_embedding_config: z
+            .object({
+              model: z.string().trim().max(200).optional(),
+              baseUrl: z.url().max(500).optional(),
+            })
+            .optional(),
+          ai_embedding_api_key: z.string().trim().max(8_192).optional(),
+          clear_ai_embedding_api_key: z.boolean().optional(),
         })
         .safeParse(values);
       if (!aiSettingsResult.success)
@@ -1648,6 +1667,9 @@ export function createApp(options: CreateOptions = {}) {
       delete values.ai_api_key;
       delete values.openai_api_key;
       delete values.ai_encrypted_api_key;
+      const incomingEmbeddingKey = String(values.ai_embedding_api_key || "").trim();
+      delete values.ai_embedding_api_key;
+      delete values.ai_embedding_encrypted_api_key;
       const aiProviderChanged =
         values.ai_provider !== undefined &&
         requestedAiProvider !== String(current.ai_provider || "");
@@ -1670,6 +1692,18 @@ export function createApp(options: CreateOptions = {}) {
           brandId,
         );
       }
+      const embeddingProviderChanged =
+        values.ai_embedding_provider !== undefined &&
+        requestedEmbeddingProvider !== String(current.ai_embedding_provider || "");
+      if (request.body.clear_ai_embedding_api_key || embeddingProviderChanged || isLocalAiProvider(requestedEmbeddingProvider)) {
+        db.prepare("UPDATE brands SET ai_embedding_encrypted_api_key=NULL WHERE id=?").run(brandId);
+      }
+      if (incomingEmbeddingKey) {
+        values.ai_embedding_encrypted_api_key = encryptCredentials(
+          { apiKey: incomingEmbeddingKey },
+          aiEncryptionKey(config),
+        );
+      }
       if (
         values.ai_provider_config &&
         typeof values.ai_provider_config === "object"
@@ -1683,6 +1717,11 @@ export function createApp(options: CreateOptions = {}) {
             String(aiProviderConfig.baseUrl || ""),
           );
         values.ai_provider_config = aiProviderConfig;
+      }
+      if (values.ai_embedding_config && typeof values.ai_embedding_config === "object") {
+        const embeddingConfig = { ...(values.ai_embedding_config as Record<string, unknown>) };
+        if (isLocalAiProvider(requestedEmbeddingProvider)) embeddingConfig.baseUrl = normalizeLocalAiBaseUrl(requestedEmbeddingProvider, String(embeddingConfig.baseUrl || ""));
+        values.ai_embedding_config = embeddingConfig;
       }
       if (!values.recaptcha_secret_key) delete values.recaptcha_secret_key;
       if (
@@ -1723,6 +1762,9 @@ export function createApp(options: CreateOptions = {}) {
         "ai_provider",
         "ai_provider_config",
         "ai_encrypted_api_key",
+        "ai_embedding_provider",
+        "ai_embedding_config",
+        "ai_embedding_encrypted_api_key",
         "ai_enabled",
         "default_query",
         "test_prefix",
@@ -1747,6 +1789,7 @@ export function createApp(options: CreateOptions = {}) {
         "report_rows",
         "rss_enabled",
       ]);
+      if (values.ai_embedding_provider !== undefined || values.ai_embedding_config !== undefined || values.ai_embedding_encrypted_api_key !== undefined) void knowledgeAgent.reindexProfile({ brandId }).catch(() => undefined);
       audit(db, "update", "brand", brandId, request.authUser?.id, brandId);
       response.json(
         withoutBrandSecrets(
@@ -5836,6 +5879,7 @@ export function createApp(options: CreateOptions = {}) {
   app.locals.stopWorker = stopWorker;
   app.locals.stopMultiChannelWorker = stopMultiChannelWorker;
   app.locals.multiChannel = multiChannel;
+  app.locals.knowledgeAgent = knowledgeAgent;
 
   app.use(
     (

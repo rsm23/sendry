@@ -9,7 +9,7 @@ Authorization: Bearer snd_example
 Content-Type: application/json
 ```
 
-Tokens are workspace-scoped. Brand and audience ownership checks apply to every request. `/api/v2` additionally enforces granular scopes such as `contacts:*`, `campaigns:*`, `messages:send`, `conversations:*`, `providers:*`, and `calls:use`.
+Tokens are workspace-scoped. Brand and audience ownership checks apply to every request. `/api/v2` additionally enforces granular scopes such as `contacts:*`, `campaigns:*`, `messages:send`, `conversations:*`, `providers:*`, `chatbots:read`, `chatbots:write`, and `calls:use`.
 
 `/api/v1` remains backward compatible. New channel-aware integrations should use `/api/v2`; v2 failures always use `{ "error": string, "code": string, "details"?: unknown }`.
 
@@ -29,6 +29,10 @@ Tokens are workspace-scoped. Brand and audience ownership checks apply to every 
 | `POST` | `/api/v2/brands/:brandId/connections/:id/test` | `providers:write` |
 | `GET/POST` | `/api/v2/brands/:brandId/sender-identities` | `providers:read` / `providers:write` |
 | `POST` | `/api/v2/brands/:brandId/calls/token` | `calls:use` |
+| `GET/PATCH` | `/api/v2/brands/:brandId/chatbots[/:widgetId]` | `chatbots:read` / `chatbots:write` |
+| `GET/POST/DELETE` | `/api/v2/brands/:brandId/chatbots/:widgetId/knowledge[/documentId]` | `chatbots:read` / `chatbots:write` plus Files access |
+| `POST` | `/api/v2/brands/:brandId/chatbots/:widgetId/test` | `chatbots:read` |
+| `POST` | `/api/v2/brands/:brandId/chatbots/reindex` | `chatbots:write` plus Files access |
 
 Campaign and transactional content is discriminated by `channel`. Every request declares `marketing`, `transactional`, or `support` purpose. For example:
 
@@ -68,7 +72,7 @@ POST /api/v2/webhooks/email/ses/:connectionId
 
 Duplicate provider event identifiers are acknowledged but not processed twice. `STOP`, `ARRET`, and equivalent inbound keywords create a suppression and cancel matching queued deliveries immediately.
 
-The public chat/push surface is under `/api/v2/public`. It enforces origin checks, signed visitor sessions, payload limits, and rate limits. The same-origin browser push assets are `/sendry-push.js` and `/sendry-sw.js`.
+The public chat/push surface is under `/api/v2/public`. The chat loader validates its embedding-site Referer and issues a five-minute launch token. Visitor sessions are signed, persisted, conversation-bound, and used to authenticate Socket.IO. `GET /api/v2/public/widget/:publicKey/messages` provides cursor-based reconnect history. Public message serialization never includes retrieval sources, filenames, excerpts, scores, provider details, or internal notes. The same-origin browser push assets are `/sendry-push.js` and `/sendry-sw.js`.
 
 ## Files workspace
 

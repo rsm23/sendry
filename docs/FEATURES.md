@@ -60,6 +60,10 @@
 - Persisted analyses that can be closed, reopened, and regenerated
 - Per-brand feature switch and provider key
 - Deterministic local assistance when no provider key is configured
+- Widget-specific opt-in knowledge agents with separately configurable generation and embedding providers
+- Quarantined Files attachment and upload for searchable PDF, DOCX, PPTX, XLSX, CSV, ODS, TXT, Markdown, and HTML
+- Asynchronous structural parsing, hybrid dense/lexical retrieval, confidence gating, streamed answers, and automatic human handoff
+- Private inbox evidence with file location, score, model, latency, and permission-checked Files links; public answers never expose sources
 
 ## Audiences and subscribers
 

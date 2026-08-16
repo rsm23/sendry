@@ -231,13 +231,24 @@ test("assigns and replies from the unified inbox with mocked call controls", asy
 });
 
 test("opens a signed web-chat visitor session", async ({ page }) => {
-  await page.goto("/widget/atlas_demo");
+  const loader = await page.request.get(
+    "/api/v2/public/widget/atlas_demo/loader.js",
+    { headers: { Referer: "http://localhost:5173/e2e-host" } },
+  );
+  expect(loader.ok()).toBeTruthy();
+  const source = await loader.text();
+  const iframeSource = source.match(/f\.src=("(?:[^"\\]|\\.)*")/)?.[1];
+  expect(iframeSource).toBeTruthy();
+  const launchUrl = new URL(JSON.parse(iframeSource!));
+  await page.goto(`${launchUrl.pathname}${launchUrl.search}`);
   await page.getByPlaceholder("Your name").fill("Camille Martin");
   await page.getByPlaceholder("you@example.com").fill("camille@example.test");
   await page.getByPlaceholder("Write your message…").fill("Is the Atelier Chair in stock?");
   await page.getByRole("button", { name: /Start conversation/ }).click();
   await expect(page.getByText("Hi! How can the Atlas team help?")).toBeVisible();
-  await expect(page.getByText("Is the Atelier Chair in stock?")).toBeVisible();
+  await expect(
+    page.getByText("Is the Atelier Chair in stock?").last(),
+  ).toBeVisible();
 });
 
 test("configures every managed delivery provider and verifies local connectivity", async ({

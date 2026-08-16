@@ -68,6 +68,22 @@ services:
       timeout: 5s
       retries: 20
 
+  qdrant:
+    image: qdrant/qdrant:v1.18.3
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_WRITE_KEY:-sendry-local-qdrant-write-key}
+      QDRANT__SERVICE__READ_ONLY_API_KEY: ${QDRANT_READ_KEY:-sendry-local-qdrant-read-key}
+    volumes:
+      - sendry-qdrant:/qdrant/storage
+    ports:
+      - "127.0.0.1:${QDRANT_PORT:-6333}:6333"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   app:
     build: .
     command: ["sh", "-c", "pnpm db:migrate && if [ \"$$SEED_DEMO\" = \"true\" ]; then pnpm db:seed; fi && node dist-server/index.js"]
@@ -89,6 +105,12 @@ services:
       OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
       CLAMAV_HOST: clamav
       CLAMAV_PORT: 3310
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_READ_KEY: ${QDRANT_READ_KEY:-sendry-local-qdrant-read-key}
+      QDRANT_WRITE_KEY: ${QDRANT_WRITE_KEY:-sendry-local-qdrant-write-key}
+      QDRANT_COLLECTION_PREFIX: ${QDRANT_COLLECTION_PREFIX:-sendry_knowledge}
+      KNOWLEDGE_INDEX_CONCURRENCY: ${KNOWLEDGE_INDEX_CONCURRENCY:-2}
+      KNOWLEDGE_RETRIEVAL_LIMIT: ${KNOWLEDGE_RETRIEVAL_LIMIT:-40}
       MAIL_TRANSPORT: ${MAIL_TRANSPORT:-stream}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       AWS_REGION: ${AWS_REGION:-us-east-1}
@@ -100,6 +122,7 @@ services:
       redis: { condition: service_healthy }
       minio-init: { condition: service_completed_successfully }
       clamav: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4010/api/setup/status').then(r=>{if(!r.ok)process.exit(1)})"]
       interval: 10s
@@ -117,9 +140,24 @@ services:
       app: { condition: service_healthy }
     restart: unless-stopped
 
+  knowledge-worker:
+    build: .
+    command: ["node", "dist-server/knowledge-worker.js"]
+    environment: *sendry-env
+    volumes:
+      - sendry-legacy:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+      clamav: { condition: service_healthy }
+      qdrant: { condition: service_healthy }
+    restart: unless-stopped
+
 volumes:
   sendry-postgres:
   sendry-redis:
   sendry-minio:
   sendry-clamav:
+  sendry-qdrant:
   sendry-legacy:

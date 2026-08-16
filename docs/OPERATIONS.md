@@ -18,6 +18,11 @@
 | `CREDENTIAL_ENCRYPTION_KEY` | none                | Required production AES-256-GCM provider-secret key               |
 | `OBJECT_STORAGE_*`      | none                    | S3/MinIO endpoint, region, bucket and credentials                  |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | none / `3310`     | Attachment malware scanning service                               |
+| `QDRANT_URL` | none | Private Qdrant REST endpoint; required when `chat_ai` is enabled |
+| `QDRANT_READ_KEY` / `QDRANT_WRITE_KEY` | none | Separate application read and knowledge-worker write credentials |
+| `QDRANT_COLLECTION_PREFIX` | `sendry_knowledge` | Prefix for collection-per-embedding-profile indexes |
+| `KNOWLEDGE_INDEX_CONCURRENCY` | `2` | Parallel document-indexing jobs per knowledge worker |
+| `KNOWLEDGE_RETRIEVAL_LIMIT` | `40` | Maximum dense and lexical candidates before fusion |
 | `MAIL_TRANSPORT`        | `stream`                | Force `stream`, or allow each brand to choose `smtp` or `ses`     |
 | `OPENAI_API_KEY`        | empty                   | Optional server-wide OpenAI key; a brand OpenAI key takes precedence |
 | `AWS_REGION`            | `us-east-1`             | Default SES region                                                |
@@ -35,7 +40,7 @@ Create `.env` and set at least `APP_URL` and `SESSION_SECRET`, then run:
 docker compose up --build
 ```
 
-The service is available on port 4010. PostgreSQL, Redis AOF, MinIO, ClamAV definitions, and the rollback SQLite source use separate named volumes. The worker process is separate from the API.
+The service is available on port 4010. PostgreSQL, Redis AOF, MinIO, ClamAV, Qdrant, and the rollback SQLite source use separate named volumes. Delivery and knowledge-indexing workers are separate services. Qdrant has no published production port.
 
 ## PostgreSQL migration and rollback
 
@@ -65,6 +70,10 @@ sqlite3 ./data/sendry.db ".backup './backups/sendry-$(date +%Y%m%d-%H%M%S).db'"
 ```
 
 Validate recovery in an isolated environment by restoring PostgreSQL, Redis, media objects, and the legacy source, then running migration reconciliation and a stream-provider canary.
+
+Chatbot knowledge recovery also requires immutable source-file objects and PostgreSQL knowledge metadata. Snapshot Qdrant on the same schedule, but treat vectors as reconstructible: after restoring PostgreSQL and source files, run `pnpm knowledge:repair -- --dry-run`, then `pnpm knowledge:repair -- --rebuild-vectors`. Validate document counts, cross-widget isolation, one grounded answer, and one low-evidence handoff before reopening public traffic.
+
+Production Qdrant must use private networking, TLS, authentication, encrypted snapshots, and a replicated load-balanced cluster. Pre-size shards for the expected 100,000-file/one-million-chunk workload because existing self-hosted collections are not automatically resharded. Never expose Qdrant to browsers or log document text, prompts, or vectors.
 
 ### File Library storage and migration
 
@@ -116,6 +125,7 @@ BullMQ workers use deterministic delivery IDs and database idempotency records. 
 - resets monthly usage on each brand's configured day.
 - raw provider-webhook normalization and deduplication;
 - IMAP, template, retention, media-quarantine, and scheduling work.
+- structural document parsing, bounded embedding batches, idempotent knowledge indexing, retry/backoff, version swaps, and vector cleanup in the dedicated knowledge worker.
 
 Annual automations retain each delivery record and enqueue the next yearly occurrence after a successful send. Brand privacy mode forces enabled campaign and automation tracking to anonymous collection while preserving any explicitly disabled tracking mode.
 
@@ -133,3 +143,4 @@ Use Settings → API & jobs to inspect the latest jobs and errors.
 - Restrict MinIO/S3 bucket access, require ClamAV, and verify signed URL expiry.
 - Run provider sandbox/canary checks for every enabled brand/channel.
 - Run `pnpm verify` and `pnpm test:e2e` for each release.
+- Confirm PostgreSQL, Redis, object storage, ClamAV, and Qdrant readiness before enabling `chat_ai`; leave existing human-only chat enabled when knowledge infrastructure is unavailable.

@@ -11,6 +11,7 @@ import type { AppConfig } from './config'
 import { audit, tokenHash, type AppDatabase } from './db'
 import { MediaStorage } from './multichannel/storage'
 import { nowIso } from './serialize'
+import type { KnowledgeAgent } from './knowledge/agent'
 
 export type FileRole = 'viewer' | 'commenter' | 'editor' | 'manager'
 type FileRow = Record<string, unknown> & {
@@ -247,12 +248,22 @@ async function sendContent(storage: MediaStorage, config: AppConfig, file: FileR
   return response.sendFile(path)
 }
 
-export function createFilesRouter(db: AppDatabase, config: AppConfig) {
+export function createFilesRouter(db: AppDatabase, config: AppConfig, knowledge?: KnowledgeAgent) {
   const router = Router({ mergeParams: true })
   const storage = new MediaStorage(config)
   const quarantine = join(config.uploadDir, '.quarantine')
   mkdirSync(quarantine, { recursive: true })
   const upload = multer({ dest: quarantine, limits: { fileSize: config.fileLibraryMaxBytes, files: 25 } })
+  const excludeKnowledge = (fileId: string) => {
+    if (!knowledge) return
+    const documents = db.prepare(`WITH RECURSIVE descendants(id) AS (SELECT id FROM files WHERE id=? UNION ALL SELECT f.id FROM files f JOIN descendants d ON f.parent_id=d.id) SELECT kd.id,kd.brand_id,kd.widget_id FROM knowledge_documents kd JOIN descendants d ON d.id=kd.file_id WHERE kd.status NOT IN ('removed','replaced')`).all(fileId) as Array<{ id: string; brand_id: string; widget_id: string }>
+    for (const document of documents) void knowledge.removeDocument({ brandId: document.brand_id, widgetId: document.widget_id, documentId: document.id }).catch(() => undefined)
+  }
+  const reindexKnowledge = (fileId: string) => {
+    if (!knowledge) return
+    const links = db.prepare(`WITH RECURSIVE descendants(id) AS (SELECT id FROM files WHERE id=? UNION ALL SELECT f.id FROM files f JOIN descendants d ON f.parent_id=d.id) SELECT DISTINCT kd.brand_id,kd.widget_id,kd.file_id FROM knowledge_documents kd JOIN descendants d ON d.id=kd.file_id`).all(fileId) as Array<{ brand_id: string; widget_id: string; file_id: string }>
+    for (const link of links) void knowledge.indexDocument({ brandId: link.brand_id, widgetId: link.widget_id, fileId: link.file_id }).catch(() => undefined)
+  }
 
   router.use((request, response, next) => {
     if (!request.authUser && request.authKind !== 'api') return response.status(401).json({ error: 'Authentication required' })
@@ -383,10 +394,11 @@ export function createFilesRouter(db: AppDatabase, config: AppConfig) {
       if (!file || !role || (['trash', 'restore', 'move', 'copy'].includes(value.action) && roleWeight[role] < roleWeight.editor)) { results.push({ id, ok: false, error: 'Access denied' }); continue }
       if (!request.authUser && ['star', 'unstar'].includes(value.action)) { results.push({ id, ok: false, error: 'Member session required' }); continue }
       const now = nowIso()
-      if (value.action === 'trash') db.prepare('UPDATE files SET original_parent_id=parent_id,trashed_at=?,trashed_by=?,updated_at=? WHERE id=?').run(now, request.authUser?.id ?? null, now, id)
+      if (value.action === 'trash') { db.prepare('UPDATE files SET original_parent_id=parent_id,trashed_at=?,trashed_by=?,updated_at=? WHERE id=?').run(now, request.authUser?.id ?? null, now, id); excludeKnowledge(id) }
       if (value.action === 'restore') {
         const original = file.original_parent_id ? db.prepare("SELECT id FROM files WHERE id=? AND brand_id=? AND kind='folder' AND trashed_at IS NULL").get(file.original_parent_id, file.brand_id) : null
         db.prepare('UPDATE files SET parent_id=?,trashed_at=NULL,trashed_by=NULL,updated_at=? WHERE id=?').run(original ? file.original_parent_id : null, now, id)
+        reindexKnowledge(id)
       }
       if (value.action === 'star') db.prepare('INSERT OR IGNORE INTO file_stars (file_id,user_id,created_at) VALUES (?,?,?)').run(id, request.authUser!.id, now)
       if (value.action === 'unstar') db.prepare('DELETE FROM file_stars WHERE file_id=? AND user_id=?').run(id, request.authUser!.id)
@@ -463,6 +475,7 @@ export function createFilesRouter(db: AppDatabase, config: AppConfig) {
     if (!access) return
     const now = nowIso()
     db.prepare('UPDATE files SET original_parent_id=parent_id,trashed_at=?,trashed_by=?,updated_at=? WHERE id=?').run(now, request.authUser?.id ?? null, now, access.file.id)
+    excludeKnowledge(access.file.id)
     auditFile(db, request, 'trash', access.file)
     response.status(204).end()
   })
@@ -472,6 +485,7 @@ export function createFilesRouter(db: AppDatabase, config: AppConfig) {
     if (!access) return
     const parent = access.file.original_parent_id ? db.prepare("SELECT id FROM files WHERE id=? AND brand_id=? AND kind='folder' AND trashed_at IS NULL").get(access.file.original_parent_id, access.file.brand_id) : null
     db.prepare('UPDATE files SET parent_id=?,trashed_at=NULL,trashed_by=NULL,updated_at=? WHERE id=?').run(parent ? access.file.original_parent_id : null, nowIso(), access.file.id)
+    reindexKnowledge(access.file.id)
     auditFile(db, request, 'restore', access.file)
     response.json(decorate(db, request, config, db.prepare('SELECT * FROM files WHERE id=?').get(access.file.id) as FileRow))
   })
@@ -510,6 +524,7 @@ export function createFilesRouter(db: AppDatabase, config: AppConfig) {
         db.prepare('UPDATE files SET current_version_id=?,storage_name=?,mime_type=?,size=?,updated_at=? WHERE id=?').run(id, promoted.storage_key, promoted.mime_type, promoted.size, now, access.file.id)
       })()
       auditFile(db, request, 'upload_version', access.file, { version: next.number })
+      reindexKnowledge(access.file.id)
       response.status(201).json(db.prepare('SELECT * FROM file_versions WHERE id=?').get(id))
     } catch (error) {
       unlinkSync(incoming.path)
@@ -529,6 +544,7 @@ export function createFilesRouter(db: AppDatabase, config: AppConfig) {
       db.prepare('UPDATE files SET current_version_id=?,storage_name=?,mime_type=?,size=?,updated_at=? WHERE id=?').run(id, source.storage_key, source.mime_type, source.size, now, access.file.id)
     })()
     auditFile(db, request, 'restore_version', access.file, { source_version: source.version_number, version: next.number })
+    reindexKnowledge(access.file.id)
     response.status(201).json(db.prepare('SELECT * FROM file_versions WHERE id=?').get(id))
   })
 

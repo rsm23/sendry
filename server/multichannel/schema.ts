@@ -48,6 +48,66 @@ export const featureFlags = pgTable('feature_flags', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [primaryKey({ columns: [table.brandId, table.key] })])
 
+export const knowledgeDocuments = pgTable('knowledge_documents', {
+  id: text('id').primaryKey(),
+  brandId: text('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  widgetId: text('widget_id').notNull(),
+  fileId: text('file_id').notNull(),
+  fileVersionId: text('file_version_id').notNull(),
+  status: text('status').notNull().default('queued'),
+  parserVersion: text('parser_version').notNull(),
+  embeddingProfile: text('embedding_profile').notNull(),
+  chunkCount: integer('chunk_count').notNull().default(0),
+  progress: integer('progress').notNull().default(0),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  createdBy: text('created_by'),
+  indexedAt: timestamp('indexed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex('knowledge_documents_job_unique').on(table.widgetId, table.fileId, table.fileVersionId, table.parserVersion, table.embeddingProfile),
+  index('knowledge_documents_widget_status_idx').on(table.widgetId, table.status),
+])
+
+export const knowledgeChunks = pgTable('knowledge_chunks', {
+  id: text('id').primaryKey(),
+  documentId: text('document_id').notNull().references(() => knowledgeDocuments.id, { onDelete: 'cascade' }),
+  brandId: text('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  widgetId: text('widget_id').notNull(),
+  ordinal: integer('ordinal').notNull(),
+  content: text('content').notNull(),
+  location: jsonb('location').$type<Record<string, unknown>>().notNull().default({}),
+  tokenEstimate: integer('token_estimate').notNull(),
+  contentHash: text('content_hash').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex('knowledge_chunks_document_ordinal_unique').on(table.documentId, table.ordinal), index('knowledge_chunks_widget_idx').on(table.widgetId, table.documentId)])
+
+export const knowledgeRetrievalRuns = pgTable('knowledge_retrieval_runs', {
+  id: text('id').primaryKey(),
+  brandId: text('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  widgetId: text('widget_id').notNull(),
+  conversationId: text('conversation_id'),
+  queryHash: text('query_hash').notNull(),
+  outcome: text('outcome').notNull(),
+  provider: text('provider'),
+  model: text('model'),
+  evidence: jsonb('evidence').$type<Array<Record<string, unknown>>>().notNull().default([]),
+  latencyMs: integer('latency_ms').notNull().default(0),
+  errorCode: text('error_code'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index('knowledge_retrieval_runs_widget_idx').on(table.widgetId, table.createdAt)])
+
+export const conversationAgentStates = pgTable('conversation_agent_states', {
+  conversationId: text('conversation_id').primaryKey(),
+  brandId: text('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  widgetId: text('widget_id').notNull(),
+  state: text('state').notNull().default('active'),
+  reason: text('reason'),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [index('conversation_agent_states_widget_idx').on(table.widgetId, table.state)])
+
 export const contacts = pgTable('contacts', {
   id: text('id').primaryKey(),
   brandId: text('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),

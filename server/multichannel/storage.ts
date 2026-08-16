@@ -109,6 +109,22 @@ export class MediaStorage {
 
   localPath(storageKey: string) { return join(this.config.uploadDir, storageKey) }
 
+  async read(storageBackend: string, storageKey: string, maxBytes = 25 * 1024 * 1024) {
+    let data: Buffer
+    if (storageBackend === 'object') {
+      if (!this.s3) throw new Error('Object storage is not configured')
+      const response = await this.s3.send(new GetObjectCommand({ Bucket: this.config.objectStorageBucket, Key: storageKey }))
+      const bytes = await response.Body?.transformToByteArray()
+      if (!bytes) throw new Error('Stored file bytes are unavailable')
+      data = Buffer.from(bytes)
+    } else {
+      const path = storageBackend === 'legacy' ? join(this.config.uploadDir, basename(storageKey)) : this.localPath(storageKey)
+      data = await fs.readFile(path)
+    }
+    if (data.length > maxBytes) throw new Error(`File exceeds the ${Math.round(maxBytes / 1024 / 1024)} MB knowledge limit`)
+    return data
+  }
+
   async remove(storageKey: string) {
     if (this.s3) await this.s3.send(new DeleteObjectCommand({ Bucket: this.config.objectStorageBucket, Key: storageKey }))
     else await fs.unlink(join(this.config.uploadDir, storageKey)).catch(() => undefined)

@@ -17,6 +17,7 @@ const shutdown = async () => {
   const stopRealtime = await stopRealtimePromise
   await stopRealtime()
   await app.locals.multiChannel.close()
+  await app.locals.knowledgeAgent.close()
   server.close(() => {
     app.locals.db.close()
     process.exit(0)

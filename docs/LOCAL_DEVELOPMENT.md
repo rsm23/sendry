@@ -1,6 +1,6 @@
 # Local development
 
-This guide starts the complete Sendry development stack with durable demo data. The application runs on the host for fast reloads; PostgreSQL, Redis, MinIO, and ClamAV run in Docker.
+This guide starts the complete Sendry development stack with durable demo data. The application runs on the host for fast reloads; PostgreSQL, Redis, MinIO, ClamAV, and Qdrant run in Docker.
 
 ## Requirements
 
@@ -36,6 +36,8 @@ The local stream provider exercises delivery code without sending messages to re
 
 The File Library uses MinIO and ClamAV from the same development stack. Its defaults are 100 MiB per stored file, 50 MiB for browser Office previews, and 5 MiB for text/code previews. These are configured with `FILE_LIBRARY_MAX_BYTES`, `FILE_OFFICE_PREVIEW_MAX_BYTES`, and `FILE_CODE_PREVIEW_MAX_BYTES`. File Library policy is deliberately broader than `allowed_attachments`, which is applied again when a campaign sends.
 
+Chatbot knowledge uses Qdrant for vectors and starts disabled. Configure generation and embedding models, attach at least one ready source, then enable the `chat_ai` feature flag and the selected widget agent. Run the dedicated `pnpm start:knowledge-worker` process when the API is not launched through the full Compose stack.
+
 ## Everyday startup
 
 The Docker volumes and SQLite file retain data between runs. After the first setup:
@@ -53,7 +55,7 @@ API that is already running, use `pnpm dev:web`.
 To stop the infrastructure while keeping all data:
 
 ```bash
-docker compose stop postgres redis minio clamav
+docker compose stop postgres redis minio clamav qdrant
 ```
 
 ## Migrations and seed data
@@ -128,6 +130,7 @@ Service endpoints used by host development:
 | MinIO API | `http://127.0.0.1:9000` |
 | MinIO console | `http://127.0.0.1:9001` |
 | ClamAV | `127.0.0.1:3310` |
+| Qdrant | `http://127.0.0.1:6333` (loopback only) |
 
 If a host port is already in use, override `POSTGRES_PORT`, `REDIS_PORT`, `MINIO_API_PORT`, or `CLAMAV_PORT` for Docker and update the corresponding URL in `.env`.
 

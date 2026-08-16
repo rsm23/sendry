@@ -30,6 +30,12 @@ export type AppConfig = {
   clamavHost?: string
   clamavPort: number
   allowLegacySqlite: boolean
+  qdrantUrl?: string
+  qdrantReadKey?: string
+  qdrantWriteKey?: string
+  qdrantCollectionPrefix: string
+  knowledgeIndexConcurrency: number
+  knowledgeRetrievalLimit: number
 }
 
 export function getConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -63,6 +69,12 @@ export function getConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     clamavHost: process.env.CLAMAV_HOST || undefined,
     clamavPort: Number(process.env.CLAMAV_PORT ?? 3310),
     allowLegacySqlite: process.env.ALLOW_LEGACY_SQLITE === 'true' || process.env.NODE_ENV !== 'production',
+    qdrantUrl: process.env.QDRANT_URL || undefined,
+    qdrantReadKey: process.env.QDRANT_READ_KEY || undefined,
+    qdrantWriteKey: process.env.QDRANT_WRITE_KEY || undefined,
+    qdrantCollectionPrefix: process.env.QDRANT_COLLECTION_PREFIX ?? 'sendry_knowledge',
+    knowledgeIndexConcurrency: Math.max(1, Number(process.env.KNOWLEDGE_INDEX_CONCURRENCY ?? 2)),
+    knowledgeRetrievalLimit: Math.min(100, Math.max(8, Number(process.env.KNOWLEDGE_RETRIEVAL_LIMIT ?? 40))),
     ...overrides,
   }
 }

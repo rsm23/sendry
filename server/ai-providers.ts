@@ -264,7 +264,7 @@ async function completeCompatible(
   if (!local && !settings.apiKey) return null;
   const baseUrl = local
     ? normalizeLocalAiBaseUrl("lmstudio", settings.baseUrl)
-    : HOSTED_PROVIDERS[
+    : settings.baseUrl || HOSTED_PROVIDERS[
         settings.provider as Exclude<AiProviderId, "anthropic" | "lmstudio" | "ollama">
       ].baseUrl;
   if (local) await assertLocalAiEndpoint(new URL(baseUrl));
@@ -300,4 +300,92 @@ export async function completeWithAiProvider(
   if (settings.provider === "ollama")
     return completeOllama(settings, instructions, input);
   return completeCompatible(settings, instructions, input);
+}
+
+export function providerSupportsEmbeddings(provider: string) {
+  return provider !== '' && provider !== 'anthropic'
+}
+
+function vectorsFromCompatibleResponse(payload: Record<string, unknown>) {
+  if (!Array.isArray(payload.data)) throw new Error('The embedding provider returned no vectors')
+  const vectors = payload.data.map((item) => {
+    const vector = item && typeof item === 'object' ? (item as Record<string, unknown>).embedding : undefined
+    if (!Array.isArray(vector) || !vector.length || vector.some((value) => typeof value !== 'number' || !Number.isFinite(value))) throw new Error('The embedding provider returned an invalid vector')
+    return vector as number[]
+  })
+  return vectors
+}
+
+export async function embedWithAiProvider(settings: AiProviderSettings, inputs: string[]) {
+  if (!settings.provider || !settings.model.trim()) throw new Error('An embedding provider and model are required')
+  if (!providerSupportsEmbeddings(settings.provider)) throw new Error(`${settings.provider} does not expose an embeddings API`)
+  if (!inputs.length) return []
+  if (inputs.length > 128 || inputs.some((input) => input.length > 16_000)) throw new Error('Embedding batch exceeds the configured bounds')
+  if (settings.provider === 'ollama') {
+    const baseUrl = normalizeLocalAiBaseUrl('ollama', settings.baseUrl)
+    await assertLocalAiEndpoint(new URL(baseUrl))
+    const payload = await fetchProviderJson(endpoint(baseUrl, 'api/embed'), {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: settings.model, input: inputs }),
+    })
+    if (!Array.isArray(payload.embeddings)) throw new Error('The embedding provider returned no vectors')
+    return payload.embeddings.map((vector) => {
+      if (!Array.isArray(vector) || vector.some((value) => typeof value !== 'number' || !Number.isFinite(value))) throw new Error('The embedding provider returned an invalid vector')
+      return vector as number[]
+    })
+  }
+  const local = settings.provider === 'lmstudio'
+  if (!local && !settings.apiKey) throw new Error('The embedding provider API key is required')
+  const baseUrl = local ? normalizeLocalAiBaseUrl('lmstudio', settings.baseUrl) : settings.baseUrl || HOSTED_PROVIDERS[settings.provider as Exclude<AiProviderId, 'anthropic' | 'lmstudio' | 'ollama'>].baseUrl
+  if (local) await assertLocalAiEndpoint(new URL(baseUrl))
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (settings.apiKey) headers.authorization = `Bearer ${settings.apiKey}`
+  const payload = await fetchProviderJson(endpoint(baseUrl, 'embeddings'), { method: 'POST', headers, body: JSON.stringify({ model: settings.model, input: inputs }) }, settings.apiKey)
+  return vectorsFromCompatibleResponse(payload)
+}
+
+export async function* streamWithAiProvider(settings: AiProviderSettings, instructions: string, input: string) {
+  if (!settings.provider || !settings.model.trim()) return
+  if (settings.provider === 'anthropic') {
+    const answer = await completeAnthropic(settings, instructions, input)
+    if (answer) yield answer
+    return
+  }
+  if (settings.provider === 'ollama') {
+    const baseUrl = normalizeLocalAiBaseUrl('ollama', settings.baseUrl)
+    await assertLocalAiEndpoint(new URL(baseUrl))
+    const response = await fetch(endpoint(baseUrl, 'api/chat'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: settings.model, stream: true, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }] }), redirect: 'error', signal: AbortSignal.timeout(60_000) })
+    if (!response.ok || !response.body) throw new Error(`AI provider request failed (${response.status})`)
+    const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+    let buffer = ''
+    while (true) {
+      const { value, done } = await reader.read(); if (done) break
+      buffer += value
+      const lines = buffer.split('\n'); buffer = lines.pop() ?? ''
+      for (const line of lines) { if (!line.trim()) continue; const payload = JSON.parse(line) as Record<string, unknown>; const message = payload.message as Record<string, unknown> | undefined; if (typeof message?.content === 'string') yield message.content }
+    }
+    return
+  }
+  const local = settings.provider === 'lmstudio'
+  if (!local && !settings.apiKey) return
+  const baseUrl = local ? normalizeLocalAiBaseUrl('lmstudio', settings.baseUrl) : settings.baseUrl || HOSTED_PROVIDERS[settings.provider as Exclude<AiProviderId, 'anthropic' | 'lmstudio' | 'ollama'>].baseUrl
+  if (local) await assertLocalAiEndpoint(new URL(baseUrl))
+  const headers: Record<string, string> = { 'content-type': 'application/json' }; if (settings.apiKey) headers.authorization = `Bearer ${settings.apiKey}`
+  const response = await fetch(endpoint(baseUrl, 'chat/completions'), { method: 'POST', headers, body: JSON.stringify({ model: settings.model, stream: true, messages: [{ role: 'system', content: instructions }, { role: 'user', content: input }] }), redirect: 'error', signal: AbortSignal.timeout(60_000) })
+  if (!response.ok || !response.body) {
+    const message = (await response.text()).slice(0, 500)
+    throw new Error(`AI provider request failed (${response.status}): ${settings.apiKey ? message.replaceAll(settings.apiKey, '••••') : message}`)
+  }
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
+  let buffer = ''
+  while (true) {
+    const { value, done } = await reader.read(); if (done) break
+    buffer += value
+    const lines = buffer.split('\n'); buffer = lines.pop() ?? ''
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue
+      const data = line.slice(5).trim(); if (!data || data === '[DONE]') continue
+      const payload = JSON.parse(data) as Record<string, unknown>, choice = Array.isArray(payload.choices) ? payload.choices[0] as Record<string, unknown> | undefined : undefined, delta = choice?.delta as Record<string, unknown> | undefined
+      if (typeof delta?.content === 'string') yield delta.content
+    }
+  }
 }

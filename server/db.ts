@@ -92,6 +92,9 @@ CREATE TABLE IF NOT EXISTS brands (
   ai_provider TEXT NOT NULL DEFAULT '',
   ai_provider_config TEXT NOT NULL DEFAULT '{}',
   ai_encrypted_api_key TEXT,
+  ai_embedding_provider TEXT NOT NULL DEFAULT '',
+  ai_embedding_config TEXT NOT NULL DEFAULT '{}',
+  ai_embedding_encrypted_api_key TEXT,
   ai_enabled INTEGER NOT NULL DEFAULT 1,
   default_query TEXT NOT NULL DEFAULT '',
   test_prefix TEXT NOT NULL DEFAULT '[Test]',
@@ -887,7 +890,84 @@ CREATE TABLE IF NOT EXISTS chat_widgets (
   accent_color TEXT NOT NULL DEFAULT '#075ee8',
   offline_capture INTEGER NOT NULL DEFAULT 1,
   enabled INTEGER NOT NULL DEFAULT 1,
+  agent_enabled INTEGER NOT NULL DEFAULT 0,
+  agent_instructions TEXT NOT NULL DEFAULT '',
+  handoff_message TEXT NOT NULL DEFAULT 'I could not find a reliable answer. A human teammate will continue this conversation.',
+  min_similarity REAL NOT NULL DEFAULT 0.55,
   created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chat_visitor_sessions (
+  id TEXT PRIMARY KEY,
+  visitor_id TEXT NOT NULL UNIQUE,
+  conversation_id TEXT NOT NULL,
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  widget_id TEXT NOT NULL REFERENCES chat_widgets(id) ON DELETE CASCADE,
+  parent_origin TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS chat_visitor_sessions_conversation ON chat_visitor_sessions(conversation_id, expires_at);
+
+CREATE TABLE IF NOT EXISTS knowledge_documents (
+  id TEXT PRIMARY KEY,
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  widget_id TEXT NOT NULL REFERENCES chat_widgets(id) ON DELETE CASCADE,
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  file_version_id TEXT NOT NULL REFERENCES file_versions(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  parser_version TEXT NOT NULL,
+  embedding_profile TEXT NOT NULL,
+  chunk_count INTEGER NOT NULL DEFAULT 0,
+  progress INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT,
+  error_message TEXT,
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  indexed_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(widget_id, file_id, file_version_id, parser_version, embedding_profile)
+);
+CREATE INDEX IF NOT EXISTS knowledge_documents_widget_status ON knowledge_documents(widget_id, status);
+
+CREATE TABLE IF NOT EXISTS knowledge_chunks (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES knowledge_documents(id) ON DELETE CASCADE,
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  widget_id TEXT NOT NULL REFERENCES chat_widgets(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  location TEXT NOT NULL DEFAULT '{}',
+  token_estimate INTEGER NOT NULL,
+  content_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(document_id, ordinal)
+);
+CREATE INDEX IF NOT EXISTS knowledge_chunks_widget ON knowledge_chunks(widget_id, document_id);
+
+CREATE TABLE IF NOT EXISTS knowledge_retrieval_runs (
+  id TEXT PRIMARY KEY,
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  widget_id TEXT NOT NULL REFERENCES chat_widgets(id) ON DELETE CASCADE,
+  conversation_id TEXT,
+  query_hash TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  provider TEXT,
+  model TEXT,
+  evidence TEXT NOT NULL DEFAULT '[]',
+  latency_ms INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conversation_agent_states (
+  conversation_id TEXT PRIMARY KEY,
+  brand_id TEXT NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  widget_id TEXT NOT NULL REFERENCES chat_widgets(id) ON DELETE CASCADE,
+  state TEXT NOT NULL DEFAULT 'active',
+  reason TEXT,
+  updated_by TEXT,
   updated_at TEXT NOT NULL
 );
 
@@ -990,6 +1070,14 @@ export function openDatabase(path = process.env.DATABASE_PATH ?? './data/sendry.
   if (!brandColumns.some((column) => column.name === 'ai_provider')) db.exec("ALTER TABLE brands ADD COLUMN ai_provider TEXT NOT NULL DEFAULT ''")
   if (!brandColumns.some((column) => column.name === 'ai_provider_config')) db.exec("ALTER TABLE brands ADD COLUMN ai_provider_config TEXT NOT NULL DEFAULT '{}'")
   if (!brandColumns.some((column) => column.name === 'ai_encrypted_api_key')) db.exec('ALTER TABLE brands ADD COLUMN ai_encrypted_api_key TEXT')
+  if (!brandColumns.some((column) => column.name === 'ai_embedding_provider')) db.exec("ALTER TABLE brands ADD COLUMN ai_embedding_provider TEXT NOT NULL DEFAULT ''")
+  if (!brandColumns.some((column) => column.name === 'ai_embedding_config')) db.exec("ALTER TABLE brands ADD COLUMN ai_embedding_config TEXT NOT NULL DEFAULT '{}'")
+  if (!brandColumns.some((column) => column.name === 'ai_embedding_encrypted_api_key')) db.exec('ALTER TABLE brands ADD COLUMN ai_embedding_encrypted_api_key TEXT')
+  const widgetColumns = db.prepare('PRAGMA table_info(chat_widgets)').all() as Array<{ name: string }>
+  if (!widgetColumns.some((column) => column.name === 'agent_enabled')) db.exec('ALTER TABLE chat_widgets ADD COLUMN agent_enabled INTEGER NOT NULL DEFAULT 0')
+  if (!widgetColumns.some((column) => column.name === 'agent_instructions')) db.exec("ALTER TABLE chat_widgets ADD COLUMN agent_instructions TEXT NOT NULL DEFAULT ''")
+  if (!widgetColumns.some((column) => column.name === 'handoff_message')) db.exec("ALTER TABLE chat_widgets ADD COLUMN handoff_message TEXT NOT NULL DEFAULT 'I could not find a reliable answer. A human teammate will continue this conversation.'")
+  if (!widgetColumns.some((column) => column.name === 'min_similarity')) db.exec('ALTER TABLE chat_widgets ADD COLUMN min_similarity REAL NOT NULL DEFAULT 0.55')
   const fileColumns = db.prepare('PRAGMA table_info(files)').all() as Array<{ name: string }>
   const addFileColumn = (name: string, sql: string) => {
     if (!fileColumns.some((column) => column.name === name)) db.exec(`ALTER TABLE files ADD COLUMN ${sql}`)
@@ -1154,6 +1242,7 @@ export function seedDatabase(db: AppDatabase) {
       VALUES (?,?,?,?,?,?,?,?,?)`).run('ana_august', brandId, 'campaign', campaignId, 'Strong engagement and stable deliverability. The product link produced the highest intent. Consider sending the next issue at the same local time and testing a shorter subject.', 87, 'fixture', now, now)
 
     for (const key of ['multichannel_core', 'sms', 'whatsapp', 'push', 'inbox', 'chat', 'voice']) db.prepare(`INSERT INTO feature_flags (brand_id,key,enabled,updated_at) VALUES (?,?,1,?)`).run(brandId, key, now)
+    db.prepare(`INSERT INTO feature_flags (brand_id,key,enabled,updated_at) VALUES (?,'chat_ai',0,?)`).run(brandId, now)
     const demoContacts = [
       ['ctc_sofia', 'Sofia Martin', 'sofia.martin@example.test', '+33612010203', 'fr', 'Europe/Paris'],
       ['ctc_marcus', 'Marcus Chen', 'marcus.chen@example.test', '+447700900123', 'en', 'Europe/London'],

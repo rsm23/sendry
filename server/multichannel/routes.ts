@@ -13,6 +13,8 @@ import type { MultiChannelRuntime } from './runtime'
 import { MediaStorage } from './storage'
 import { campaignCreateSchema, channelContentSchema, transactionalMessageSchema, type CampaignChannel, type ChannelContent, type MessagePurpose } from './types'
 import { ingestMimeMessage, ingestSesNotification, syncImapMailbox, verifySendgridInboundSignature, verifySnsMessage } from './email-inbound'
+import type { KnowledgeAgent } from '../knowledge/agent'
+import { providerSupportsEmbeddings } from '../ai-providers'
 
 const makeId = (prefix: string) => `${prefix}_${randomUUID().replaceAll('-', '')}`
 const asyncRoute = (handler: (request: Request, response: Response, next: NextFunction) => Promise<unknown>) => (request: Request, response: Response, next: NextFunction) => void handler(request, response, next).catch(next)
@@ -207,7 +209,7 @@ export function createWebhookRouter(db: AppDatabase, runtime: MultiChannelRuntim
   return router
 }
 
-export function createMultiChannelRouter(db: AppDatabase, runtime: MultiChannelRuntime, config: AppConfig) {
+export function createMultiChannelRouter(db: AppDatabase, runtime: MultiChannelRuntime, config: AppConfig, knowledge?: KnowledgeAgent) {
   const router = express.Router()
   const storage = new MediaStorage(config)
   const upload = multer({ dest: config.uploadDir, limits: { fileSize: 25 * 1024 * 1024, files: 10 } })
@@ -215,10 +217,17 @@ export function createMultiChannelRouter(db: AppDatabase, runtime: MultiChannelR
   router.get('/providers/catalog', (_request, response) => response.json({ data: runtime.providers.list() }))
 
   router.get('/brands/:brandId/feature-flags', requireV2(db, 'providers:read'), asyncRoute(async (request, response) => {
-    const keys = ['multichannel_core', 'sms', 'whatsapp', 'push', 'inbox', 'chat', 'voice']
+    const keys = ['multichannel_core', 'sms', 'whatsapp', 'push', 'inbox', 'chat', 'chat_ai', 'voice']
     response.json({ data: Object.fromEntries(await Promise.all(keys.map(async (key) => [key, await runtime.store.featureEnabled(String(request.params.brandId), key)]))) })
   }))
   router.put('/brands/:brandId/feature-flags/:key', requireV2(db, 'providers:write'), parseBody(z.object({ enabled: z.boolean() })), asyncRoute(async (request, response) => {
+    if (request.params.key === 'chat_ai' && request.body.enabled) {
+      const brand = db.prepare(`SELECT ai_provider,ai_provider_config,ai_embedding_provider,ai_embedding_config FROM brands WHERE id=?`).get(String(request.params.brandId)) as Record<string, unknown> | undefined
+      const generation = brand ? JSON.parse(String(brand.ai_provider_config || '{}')) as Record<string, unknown> : {}, embedding = brand ? JSON.parse(String(brand.ai_embedding_config || '{}')) as Record<string, unknown> : {}
+      const ready = db.prepare(`SELECT COUNT(*) AS count FROM knowledge_documents WHERE brand_id=? AND status='ready'`).get(String(request.params.brandId)) as { count: number }
+      if (!config.qdrantUrl || !brand?.ai_provider || !generation.model || (!(brand.ai_embedding_provider || providerSupportsEmbeddings(String(brand.ai_provider)))) || (!(embedding.model || (brand.ai_provider === 'openai' && 'text-embedding-3-small'))) || !ready.count) return fail(response, 409, 'Configure generation and embedding providers and index at least one ready source before enabling chat_ai', 'CHAT_AI_NOT_READY')
+      if (!(await knowledge?.health())?.qdrant) return fail(response, 503, 'The chatbot knowledge infrastructure is unavailable', 'CHAT_AI_INFRASTRUCTURE_UNAVAILABLE')
+    }
     await runtime.store.setFeatureFlag(String(request.params.brandId), String(request.params.key), request.body.enabled)
     response.json({ data: { key: request.params.key, enabled: request.body.enabled } })
   }))
@@ -336,14 +345,22 @@ export function createMultiChannelRouter(db: AppDatabase, runtime: MultiChannelR
   router.get('/brands/:brandId/conversations', requireV2(db, 'conversations:read'), requireFeature(runtime, 'inbox'), asyncRoute(async (request, response) => response.json({ data: await runtime.store.listConversations(String(request.params.brandId), String(request.query.queue ?? 'all'), request.authUser?.id) })))
   router.get('/brands/:brandId/conversations/:conversationId', requireV2(db, 'conversations:read'), requireFeature(runtime, 'inbox'), asyncRoute(async (request, response) => {
     const conversation = await runtime.store.getConversation(String(request.params.brandId), String(request.params.conversationId))
-    return conversation ? response.json({ data: conversation }) : fail(response, 404, 'Conversation not found', 'CONVERSATION_NOT_FOUND')
+    if (!conversation) return fail(response, 404, 'Conversation not found', 'CONVERSATION_NOT_FOUND')
+    const agentState = db.prepare('SELECT widget_id,state,reason,updated_at FROM conversation_agent_states WHERE conversation_id=? AND brand_id=?').get(String(request.params.conversationId), String(request.params.brandId))
+    return response.json({ data: { ...conversation, agent_state: agentState ?? null } })
   }))
-  router.patch('/brands/:brandId/conversations/:conversationId', requireV2(db, 'conversations:write'), requireFeature(runtime, 'inbox'), parseBody(z.object({ assigned_user_id: z.string().nullable().optional(), status: z.enum(['open', 'waiting', 'snoozed', 'closed']).optional(), snoozed_until: z.iso.datetime().nullable().optional() })), asyncRoute(async (request, response) => response.json({ data: await runtime.store.updateConversation({ ...request.body, brand_id: String(request.params.brandId), conversation_id: String(request.params.conversationId), actor_user_id: request.authUser?.id }) })))
+  router.patch('/brands/:brandId/conversations/:conversationId', requireV2(db, 'conversations:write'), requireFeature(runtime, 'inbox'), parseBody(z.object({ assigned_user_id: z.string().nullable().optional(), status: z.enum(['open', 'waiting', 'snoozed', 'closed']).optional(), snoozed_until: z.iso.datetime().nullable().optional() })), asyncRoute(async (request, response) => {
+    const brandId = String(request.params.brandId), conversationId = String(request.params.conversationId)
+    const result = await runtime.store.updateConversation({ ...request.body, brand_id: brandId, conversation_id: conversationId, actor_user_id: request.authUser?.id })
+    if (request.body.assigned_user_id) db.prepare(`UPDATE conversation_agent_states SET state='paused',reason='human_claimed',updated_by=?,updated_at=? WHERE conversation_id=? AND brand_id=?`).run(request.authUser?.id ?? null, nowIso(), conversationId, brandId)
+    response.json({ data: result })
+  }))
   router.post('/brands/:brandId/conversations/:conversationId/replies', requireV2(db, 'conversations:write'), requireFeature(runtime, 'inbox'), parseBody(z.object({ body: z.string().min(1).max(10000), channel: z.enum(['email', 'sms', 'whatsapp', 'chat']).optional(), internal: z.boolean().default(false), media: z.array(z.record(z.string(), z.unknown())).default([]) })), asyncRoute(async (request, response) => {
     const brandId = String(request.params.brandId), conversationId = String(request.params.conversationId)
     const conversation = await runtime.store.getConversation(brandId, conversationId)
     if (!conversation) return fail(response, 404, 'Conversation not found', 'CONVERSATION_NOT_FOUND')
     const channel = request.body.internal ? 'chat' : request.body.channel ?? String(conversation.last_channel ?? conversation.channel ?? 'chat')
+    if (!request.body.internal) db.prepare(`UPDATE conversation_agent_states SET state='paused',reason='human_replied',updated_by=?,updated_at=? WHERE conversation_id=? AND brand_id=?`).run(request.authUser?.id ?? null, nowIso(), conversationId, brandId)
     if (request.body.internal || channel === 'chat') {
       const message = await runtime.store.addMessage({ brand_id: brandId, conversation_id: conversationId, contact_id: String(conversation.contact_id), channel: 'chat', direction: request.body.internal ? 'internal' : 'outbound', kind: request.body.internal ? 'note' : 'text', body: request.body.body, media: request.body.media, sender_user_id: request.authUser?.id, status: 'sent' })
       runtime.events.emit('conversation.message', { brandId, conversationId, message })
@@ -461,7 +478,7 @@ export function createMultiChannelRouter(db: AppDatabase, runtime: MultiChannelR
   return router
 }
 
-export function createPublicChannelRouter(db: AppDatabase, runtime: MultiChannelRuntime, config: AppConfig) {
+export function createPublicChannelRouter(db: AppDatabase, runtime: MultiChannelRuntime, config: AppConfig, knowledge?: KnowledgeAgent) {
   const router = express.Router()
   const rate = new Map<string, { count: number; reset: number }>()
   const allow = (request: Request, response: Response) => {
@@ -472,9 +489,19 @@ export function createPublicChannelRouter(db: AppDatabase, runtime: MultiChannel
     return true
   }
   const widget = (publicKey: string) => db.prepare('SELECT * FROM chat_widgets WHERE public_key=? AND enabled=1').get(publicKey) as Record<string, unknown> | undefined
-  const checkOrigin = (request: Request, item: Record<string, unknown>) => {
+  const checkOrigin = (origin: string, item: Record<string, unknown>) => {
     const origins = JSON.parse(String(item.allowed_origins ?? '[]')) as string[]
-    return origins.includes('*') || origins.includes(String(request.headers.origin ?? ''))
+    return origins.includes('*') || origins.includes(origin)
+  }
+
+  const publicMessage = (message: Record<string, unknown>) => ({ id: message.id, body: message.body, direction: message.direction, created_at: message.created_at, status: message.status })
+
+  const launchAgent = async (response: Response, item: Record<string, unknown>, payload: { visitorId: string; conversationId: string; brandId: string }, question: string) => {
+    if (!knowledge || !item.agent_enabled || !(await runtime.store.featureEnabled(payload.brandId, 'chat_ai'))) return
+    const io = response.app.locals.io
+    io?.to(`visitor:${payload.visitorId}`).emit('agent.typing', { conversation_id: payload.conversationId, active: true })
+    await knowledge.answer({ brandId: payload.brandId, widgetId: String(item.id), conversationId: payload.conversationId, visitorId: payload.visitorId, question, onDelta: (delta) => io?.to(`visitor:${payload.visitorId}`).emit('agent.delta', { conversation_id: payload.conversationId, delta }) })
+    io?.to(`visitor:${payload.visitorId}`).emit('agent.typing', { conversation_id: payload.conversationId, active: false })
   }
 
   router.post('/widget/:publicKey/session', asyncRoute(async (request, response) => {
@@ -482,22 +509,30 @@ export function createPublicChannelRouter(db: AppDatabase, runtime: MultiChannel
     const item = widget(String(request.params.publicKey))
     if (!item) return fail(response, 404, 'Widget not found', 'WIDGET_NOT_FOUND')
     if (!(await runtime.store.featureEnabled(String(item.brand_id), 'chat'))) return fail(response, 404, 'Chat is not enabled', 'FEATURE_DISABLED')
-    if (!checkOrigin(request, item)) return fail(response, 403, 'Origin is not allowed', 'ORIGIN_NOT_ALLOWED')
-    const parsed = z.object({ name: z.string().max(160).default('Visitor'), email: z.email().optional(), phone: z.string().optional(), message: z.string().min(1).max(4000), bot_token: z.string().min(8) }).safeParse(request.body)
+    const parsed = z.object({ name: z.string().max(160).default('Visitor'), email: z.email().optional(), phone: z.string().optional(), message: z.string().min(1).max(4000), bot_token: z.string().min(8), launch_token: z.string().optional() }).safeParse(request.body)
     if (!parsed.success) return fail(response, 422, 'Validation failed', 'VALIDATION_ERROR', z.treeifyError(parsed.error))
+    const launch = verifyToken<{ kind: string; widgetId: string; parentOrigin: string }>(parsed.data.launch_token ?? '', config.sessionSecret)
+    const requestOrigin = String(request.headers.origin ?? '')
+    const appOrigin = new URL(config.appUrl).origin
+    const localPreview = (process.env.NODE_ENV !== 'production' && (!requestOrigin || requestOrigin === appOrigin)) || (Boolean(request.authUser) && requestOrigin === appOrigin)
+    const parentOrigin = launch?.kind === 'widget_launch' && launch.widgetId === item.id ? launch.parentOrigin : localPreview ? requestOrigin || new URL(config.appUrl).origin : ''
+    if (!parentOrigin || !checkOrigin(parentOrigin, item)) return fail(response, 403, 'Embedding origin is not allowed', 'ORIGIN_NOT_ALLOWED')
     const identifiers: Array<{ type: 'email' | 'phone'; value: string; primary: boolean }> = []
     if (parsed.data.email) identifiers.push({ type: 'email', value: parsed.data.email, primary: true })
     if (parsed.data.phone) identifiers.push({ type: 'phone', value: parsed.data.phone, primary: !parsed.data.email })
     const contact = await runtime.store.createContact({ brand_id: String(item.brand_id), display_name: parsed.data.name, identifiers })
     const inbound = await runtime.store.ingestInbound({ brand_id: String(item.brand_id), contact_id: String(contact.id), channel: 'chat', body: parsed.data.message, provider: 'widget', provider_message_id: `widget-${createHash('sha256').update(parsed.data.bot_token).digest('hex')}` })
     const conversationId = String(inbound.conversation.id)
-    const visitorId = makeId('vst'), token = signToken({ visitorId, conversationId, brandId: item.brand_id, origin: request.headers.origin }, config.sessionSecret, 86400)
-    response.status(201).json({ data: { token, visitor_id: visitorId, conversation_id: conversationId, greeting: item.greeting } })
+    const visitorId = makeId('vst'), expiresAt = new Date(Date.now() + 86400_000).toISOString(), token = signToken({ visitorId, conversationId, brandId: item.brand_id, widgetId: item.id }, config.sessionSecret, 86400)
+    db.prepare(`INSERT INTO chat_visitor_sessions (id,visitor_id,conversation_id,brand_id,widget_id,parent_origin,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?)`).run(makeId('vss'), visitorId, conversationId, item.brand_id, item.id, parentOrigin, expiresAt, nowIso())
+    response.status(201).json({ data: { token, visitor_id: visitorId, conversation_id: conversationId, greeting: item.greeting, name: item.name, agent_enabled: Boolean(item.agent_enabled) } })
+    void launchAgent(response, item, { visitorId, conversationId, brandId: String(item.brand_id) }, parsed.data.message).catch(() => undefined)
   }))
   router.post('/widget/:publicKey/messages', asyncRoute(async (request, response) => {
     if (!allow(request, response)) return
-    const item = widget(String(request.params.publicKey)), payload = verifyToken<{ visitorId: string; conversationId: string; brandId: string; origin?: string }>(String(request.headers.authorization ?? '').replace(/^Bearer /, ''), config.sessionSecret)
-    if (!item || !payload || payload.brandId !== item.brand_id || payload.origin !== request.headers.origin) return fail(response, 401, 'Visitor session is invalid or expired', 'VISITOR_SESSION_INVALID')
+    const item = widget(String(request.params.publicKey)), payload = verifyToken<{ visitorId: string; conversationId: string; brandId: string; widgetId: string }>(String(request.headers.authorization ?? '').replace(/^Bearer /, ''), config.sessionSecret)
+    const session = payload ? db.prepare(`SELECT id FROM chat_visitor_sessions WHERE visitor_id=? AND conversation_id=? AND brand_id=? AND widget_id=? AND expires_at>?`).get(payload.visitorId, payload.conversationId, payload.brandId, payload.widgetId, nowIso()) : undefined
+    if (!item || !payload || !session || payload.brandId !== item.brand_id || payload.widgetId !== item.id) return fail(response, 401, 'Visitor session is invalid or expired', 'VISITOR_SESSION_INVALID')
     const conversation = await runtime.store.getConversation(payload.brandId, payload.conversationId)
     if (!conversation) return fail(response, 404, 'Conversation not found', 'CONVERSATION_NOT_FOUND')
     const parsed = z.object({ body: z.string().min(1).max(4000), client_id: z.string().min(4) }).safeParse(request.body)
@@ -505,6 +540,19 @@ export function createPublicChannelRouter(db: AppDatabase, runtime: MultiChannel
     const message = await runtime.store.addMessage({ brand_id: payload.brandId, conversation_id: payload.conversationId, contact_id: String(conversation.contact_id), channel: 'chat', direction: 'inbound', body: parsed.data.body, metadata: { client_id: parsed.data.client_id } })
     runtime.events.emit('conversation.message', { brandId: payload.brandId, conversationId: payload.conversationId, message })
     response.status(201).json({ data: message })
+    void launchAgent(response, item, payload, parsed.data.body).catch(() => undefined)
+  }))
+  router.get('/widget/:publicKey/messages', asyncRoute(async (request, response) => {
+    if (!allow(request, response)) return
+    const item = widget(String(request.params.publicKey)), payload = verifyToken<{ visitorId: string; conversationId: string; brandId: string; widgetId: string }>(String(request.headers.authorization ?? '').replace(/^Bearer /, ''), config.sessionSecret)
+    const session = payload ? db.prepare(`SELECT id FROM chat_visitor_sessions WHERE visitor_id=? AND conversation_id=? AND brand_id=? AND widget_id=? AND expires_at>?`).get(payload.visitorId, payload.conversationId, payload.brandId, payload.widgetId, nowIso()) : undefined
+    if (!item || !payload || !session || payload.widgetId !== item.id) return fail(response, 401, 'Visitor session is invalid or expired', 'VISITOR_SESSION_INVALID')
+    const conversation = await runtime.store.getConversation(payload.brandId, payload.conversationId)
+    if (!conversation) return fail(response, 404, 'Conversation not found', 'CONVERSATION_NOT_FOUND')
+    const cursor = Math.max(0, Number(Buffer.from(String(request.query.cursor ?? ''), 'base64url').toString('utf8') || 0))
+    const all = ((conversation.messages as Array<Record<string, unknown>> | undefined) ?? []).map(publicMessage)
+    const page = all.slice(cursor, cursor + 50), next = cursor + page.length < all.length ? Buffer.from(String(cursor + page.length)).toString('base64url') : null
+    response.json({ data: page, next_cursor: next })
   }))
   router.post('/push/:brandId/subscriptions', asyncRoute(async (request, response) => {
     if (!allow(request, response)) return
@@ -520,7 +568,12 @@ export function createPublicChannelRouter(db: AppDatabase, runtime: MultiChannel
   router.get('/widget/:publicKey/loader.js', (request, response) => {
     const item = widget(String(request.params.publicKey))
     if (!item) return response.status(404).type('text/javascript').send('')
-    response.type('text/javascript').send(`(()=>{const f=document.createElement('iframe');f.src=${JSON.stringify(`${config.appUrl}/widget/${request.params.publicKey}`)};f.title='Sendry chat';f.sandbox='allow-scripts allow-forms allow-same-origin';f.style='position:fixed;right:20px;bottom:20px;width:390px;height:620px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);border:0;z-index:2147483647';document.body.appendChild(f)})()`)
+    let parentOrigin = ''
+    try { parentOrigin = new URL(String(request.headers.referer ?? '')).origin } catch { /* invalid or absent Referer */ }
+    if (!parentOrigin || !checkOrigin(parentOrigin, item)) return response.status(403).type('text/javascript').send('')
+    const launch = signToken({ kind: 'widget_launch', widgetId: item.id, parentOrigin }, config.sessionSecret, 300)
+    response.setHeader('Cache-Control', 'private, no-store')
+    response.type('text/javascript').send(`(()=>{const f=document.createElement('iframe');f.src=${JSON.stringify(`${config.appUrl}/widget/${request.params.publicKey}?launch=${encodeURIComponent(launch)}`)};f.title='Sendry chat';f.sandbox='allow-scripts allow-forms allow-same-origin';f.style='position:fixed;inset-inline-end:20px;bottom:20px;width:390px;height:620px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);border:0;z-index:2147483647';document.body.appendChild(f)})()`)
   })
   return router
 }
