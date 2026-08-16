@@ -8,6 +8,18 @@ Sendry is a self-hosted multi-channel marketing and conversations platform. It c
 
 The product is intentionally broad. Email, SMS, WhatsApp, push, chat, inbound email, and calls are first-class channels. Do not reduce a feature to email-only assumptions when its domain model is channel-aware. Customer data, credentials, and delivery operations remain controlled by the Sendry installation.
 
+## Public repository boundary
+
+This is the public MIT-licensed Sendry repository. Keep every contribution redistributable under the repository license and review new dependencies, copied code, generated artifacts, fonts, media, and fixtures for compatible provenance.
+
+Proprietary workflow-designer/runtime code, private action catalogs, licensed SDK integrations, vendor binaries, trained data, license values, and private-repository assets are outside this repository's scope. Build public features from public requirements and license-compatible sources; do not copy implementation, migrations, documentation, screenshots, or generated files from a private companion checkout. Secrets and commercial license values belong only in runtime configuration and must never enter source, fixtures, images, logs, or documentation.
+
+## Shared checkout and development servers
+
+Start by confirming the repository root and inspecting `git status`. Preserve unrelated changes and limit edits to the requested scope. When parallel tasks or agents share the checkout, state the files you intend to change before editing, establish non-overlapping ownership, and coordinate any necessary overlap first.
+
+Reuse healthy development services that are already running. Check the configured ports and `/api/health` before starting another process; start only missing services. Leave user-owned servers and containers running unless the task explicitly requires stopping or replacing them.
+
 ## Stack and boundaries
 
 - Web: React 19, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS v4, shadcn/Base UI, Lucide, Recharts.
@@ -144,3 +156,7 @@ pnpm dev
 Daily startup is `pnpm dev:services` followed by `pnpm dev`. The Vite web app is `http://127.0.0.1:5173`; the API is `http://127.0.0.1:4010`. The seeded local account is documented in `README.md` and `docs/LOCAL_DEVELOPMENT.md`. Never put production credentials in tests, fixtures, screenshots, or documentation.
 
 Before changing operations, deployment, provider setup, API behavior, or the compatibility data boundary, read the corresponding file in `docs/` and update it with the code.
+
+## Important
+
+ - Make sure you announce on a seperate thread the files you are using so other threads/agents do not override your code
